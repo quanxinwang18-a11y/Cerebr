@@ -15,24 +15,45 @@ jobs:
           submodules: 'recursive'
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: '16'
+          node-version: '22'
+
+      - name: Verify release sources
+        run: |
+          version="$(node -p "require('./manifest.json').version")"
+          test "v${version}" = "${GITHUB_REF_NAME}"
+          npm test
+          find src "v/${version}/src" -name '*.js' -print0 | xargs -0 -n1 node --check
 
       - name: Create Chrome ZIP file
+        id: package
         run: |
-          zip -r cerebr.zip . \
+          release_file="cerebr-${GITHUB_REF_NAME}-chrome.zip"
+          zip -r "${release_file}" . \
             -x "*.git*" \
             -x "*.github*" \
+            -x ".codex/*" \
             -x "*.DS_Store" \
-            -x "README*"
+            -x "README*" \
+            -x "AGENTS.md" \
+            -x "docs/*" \
+            -x "scripts/*" \
+            -x "tests/*" \
+            -x "tmp/*" \
+            -x "v/*" \
+            -x "package.json" \
+            -x "package-lock.json" \
+            -x "vercel.json" \
+            -x "CNAME"
+          echo "release_file=${release_file}" >> "${GITHUB_OUTPUT}"
 
       - name: Create Release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            cerebr.zip
+            ${{ steps.package.outputs.release_file }}
           draft: false
           prerelease: false
           generate_release_notes: true

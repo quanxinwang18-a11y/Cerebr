@@ -144,10 +144,14 @@ https://github.com/tw93/Pake
 
 ## 🚀 Latest Updates
 
-- 🆕 Added image Q&A functionality
-- 🔄 Optimized webpage content extraction algorithm
-- 🐛 Fixed math formula rendering issues
-- ⚡ Improved overall performance and stability
+### v2.6.0
+
+- 🧩 Added OpenAI Chat Completions and Anthropic Messages providers
+- 🪟 Replaced the floating panel with Chrome 141+ native Side Panel
+- 📚 Added a configurable one-click article study prompt
+- 📤 Added full-conversation Markdown export
+- 🔐 API keys and custom header values now remain on-device
+- 🌐 Kept the standalone Web version with versioned `v/2.6.0` assets
 
 ## 📝 Development Notes
 
@@ -155,7 +159,7 @@ This project is developed using Chrome Extension Manifest V3, with main tech sta
 
 - 🎨 Native JavaScript + CSS
 - 📦 Chrome Extension API
-- 🔧 PDF.js + KaTeX + Marked.js
+- 🔧 PDF.js + MathJax + Marked.js + Mermaid
 
 ## 🤝 Contribution Guide
 

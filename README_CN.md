@@ -144,10 +144,14 @@ https://github.com/tw93/Pake
 
 ## 🚀 最新更新
 
-- 🆕 支持图片问答功能
-- 🔄 优化网页内容提取算法
-- 🐛 修复数学公式渲染问题
-- ⚡ 提升整体性能和稳定性
+### v2.6.0
+
+- 🧩 新增 OpenAI Chat Completions 与 Anthropic Messages 双 Provider
+- 🪟 悬浮面板升级为 Chrome 141+ 原生 Side Panel
+- 📚 新增可配置的“学习文章”固定提示词按钮
+- 📤 新增完整会话 Markdown 导出
+- 🔐 API Key 与自定义 Header 改为仅在本机保存
+- 🌐 保留独立 Web 版本，并使用 `v/2.6.0` 版本化资源
 
 ## 📝 开发说明
 
@@ -155,7 +159,7 @@ https://github.com/tw93/Pake
 
 - 🎨 原生 JavaScript + CSS
 - 📦 Chrome Extension API
-- 🔧 PDF.js + KaTeX + Marked.js
+- 🔧 PDF.js + MathJax + Marked.js + Mermaid
 
 ## 🤝 贡献指南
 
