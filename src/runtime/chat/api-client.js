@@ -7,12 +7,15 @@
  * @property {{systemPrompt?: string, reasoningEffort?: string}} [advancedSettings] - 高级设置
  */
 
-import { normalizeChatCompletionsUrl } from '../../utils/api-url.js';
 import { t } from '../../utils/i18n.js';
 import { normalizeMessageForChatCompletions } from '../../utils/message-content.js';
-import { modelSupportsReasoningEffort, normalizeReasoningEffort } from '../../utils/reasoning-effort.js';
 import { sortPromptFragments } from '../../plugin/core/prompt-fragment-utils.js';
 import { createChatError } from './chat-errors.js';
+import {
+    buildProviderRequest,
+    consumeProviderSseLine,
+    createProviderStreamState,
+} from './provider-adapters.js';
 
 /**
  * 网页信息接口
@@ -55,11 +58,6 @@ export async function callAPI({
     webpageInfo = null,
     promptFragments = [],
 }, chatManager, chatId, onMessageUpdate, options = {}) {
-    const baseUrl = normalizeChatCompletionsUrl(apiConfig?.baseUrl);
-    if (!baseUrl || !apiConfig?.apiKey) {
-        throw new Error(t('error_api_config_incomplete'));
-    }
-
     // 构建系统消息
     let systemPrompt = apiConfig.advancedSettings?.systemPrompt || '';
     systemPrompt = systemPrompt.replace(/\{\{userLanguage\}\}/gm, userLanguage);
@@ -86,9 +84,7 @@ export async function callAPI({
         systemPrompt = `${systemPrompt}${systemPrompt ? '\n\n' : ''}${appendPromptFragments.join('\n\n')}`;
     }
 
-    const systemMessage = {
-        role: "system",
-        content: `${systemPrompt}${
+    const resolvedSystemPrompt = `${systemPrompt}${
             (webpageInfo && webpageInfo.pages) ?
             webpageInfo.pages.map(page => {
                 const prefix = page.isCurrent ? t('webpage_prefix_current') : t('webpage_prefix_other');
@@ -98,8 +94,7 @@ export async function callAPI({
                 return `\n${prefix}:\n${titleLabel}: ${page.title}\n${urlLabel}: ${page.url}\n${contentLabel}: ${page.content}`;
             }).join('\n\n---\n') :
             ''
-        }`
-    };
+        }`;
 
     // 确保消息数组中有系统消息
     // 删除消息列表中的reasoning_content字段
@@ -110,35 +105,31 @@ export async function callAPI({
         }))
         .filter((msg) => msg?.role && typeof msg?.content !== 'undefined');
 
-    if (systemMessage.content.trim() && (processedMessages.length === 0 || processedMessages[0].role !== "system")) {
-        processedMessages.unshift(systemMessage);
-    }
-
     // 注意：为了支持“首 token 前”也能立即停止更新，我们需要尽早把 controller 暴露出去。
     // 因此 fetch 的执行被延后到 processStream 内部。
     const controller = new AbortController();
     const signal = controller.signal;
 
-    const modelName = apiConfig.modelName || 'gpt-4o';
-    let requestBody = {
-        model: modelName,
-        messages: processedMessages,
-        stream: true,
-    };
-    const reasoningEffort = normalizeReasoningEffort(apiConfig.advancedSettings?.reasoningEffort);
-    if (modelSupportsReasoningEffort(modelName) && reasoningEffort !== 'off') {
-        requestBody.reasoning = {
-            effort: reasoningEffort,
-            summary: 'auto',
-        };
+    let providerRequest;
+    try {
+        providerRequest = buildProviderRequest({
+            apiConfig,
+            systemPrompt: resolvedSystemPrompt,
+            messages: processedMessages,
+        });
+    } catch (error) {
+        if (/API endpoint|API key/i.test(String(error?.message || error))) {
+            throw new Error(t('error_api_config_incomplete'));
+        }
+        throw error;
     }
+
+    const apiType = providerRequest.apiType;
+    let requestBody = providerRequest.requestBody;
 
     let requestInit = {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiConfig.apiKey}`
-        },
+        headers: providerRequest.headers,
         signal
     };
 
@@ -148,7 +139,7 @@ export async function callAPI({
 
     const processStream = async () => {
         let reader;
-        let resolvedUrl = baseUrl;
+        let resolvedUrl = providerRequest.url;
         try {
             if (typeof lifecycle?.beforeRequest === 'function') {
                 const nextDescriptor = await lifecycle.beforeRequest({
@@ -228,10 +219,8 @@ export async function callAPI({
             }
 
             let buffer = '';
-            let currentMessage = {
-                content: '',
-                reasoning_content: ''
-            };
+            const streamState = createProviderStreamState(apiType);
+            const currentMessage = streamState;
             let lastUpdateTime = 0;
             let updateTimeout = null;
             const UPDATE_INTERVAL = 100; // 每100ms更新一次
@@ -250,7 +239,10 @@ export async function callAPI({
             const dispatchUpdate = () => {
                 if (chatManager && chatId) {
                     // 创建一个副本以避免回调函数意外修改
-                    const messageCopy = { ...currentMessage };
+                    const messageCopy = {
+                        content: currentMessage.content,
+                        reasoning_content: currentMessage.reasoning_content,
+                    };
                     chatManager.updateLastMessage(chatId, messageCopy, { throttleMs: 750 });
                     onMessageUpdate(chatId, messageCopy);
                     lastUpdateTime = Date.now();
@@ -262,7 +254,66 @@ export async function callAPI({
                 }
             };
 
-            while (true) {
+            let providerStreamDone = false;
+
+            const handleSseLine = (line) => {
+                const result = consumeProviderSseLine(line, streamState);
+                if (!result) return;
+                if (result.error) {
+                    throw createChatError(
+                        result.error.code || 'PROVIDER_STREAM_ERROR',
+                        result.error.message || 'Provider stream error',
+                        { url: resolvedUrl, apiType }
+                    );
+                }
+                if (result.done) {
+                    if (currentMessage.content || currentMessage.reasoning_content) {
+                        dispatchUpdate();
+                    }
+                    providerStreamDone = true;
+                    return;
+                }
+                if (!result.hasUpdate) return;
+
+                if (typeof lifecycle?.onStreamMessage === 'function') {
+                    void Promise.resolve(lifecycle.onStreamMessage({
+                        delta: result.delta,
+                        currentMessage: {
+                            content: currentMessage.content,
+                            reasoning_content: currentMessage.reasoning_content,
+                        },
+                        chatId,
+                        url: resolvedUrl,
+                        apiType,
+                    })).catch((error) => {
+                        console.error('[Cerebr] Stream lifecycle handler failed:', error);
+                    });
+                }
+
+                if (detectMisfiledThinkSilently && !didDispatchAnyUpdate && !currentMessage.reasoning_content) {
+                    const contentStart = String(currentMessage.content || '').trimStart().toLowerCase();
+                    if (misfiledThinkSilentlyPrefixes.some((p) => contentStart.startsWith(p))) {
+                        throw createChatError(
+                            'CEREBR_MISFILED_THINK_SILENTLY',
+                            'Detected misfiled reasoning content in content field',
+                            { contentPreview: currentMessage.content }
+                        );
+                    }
+                    if (misfiledThinkSilentlyPrefixes.some((p) => p.startsWith(contentStart))) {
+                        return;
+                    }
+                }
+
+                if (!updateTimeout) {
+                    if (Date.now() - lastUpdateTime > UPDATE_INTERVAL) {
+                        dispatchUpdate();
+                    } else {
+                        updateTimeout = setTimeout(dispatchUpdate, UPDATE_INTERVAL - (Date.now() - lastUpdateTime));
+                    }
+                }
+            };
+
+            while (!providerStreamDone) {
                 const { done, value } = await reader.read();
                 if (done) {
                      // 确保最后的数据被发送
@@ -270,6 +321,10 @@ export async function callAPI({
                         dispatchUpdate();
                     }
                     // console.log('[chat.js] processStream: 响应流结束');
+                    if (buffer.trim()) {
+                        handleSseLine(buffer);
+                        buffer = '';
+                    }
                     break;
                 }
 
@@ -281,77 +336,22 @@ export async function callAPI({
                     const line = buffer.slice(0, newlineIndex);
                     buffer = buffer.slice(newlineIndex + 1);
 
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6);
-                        if (data === '[DONE]') {
-                            continue;
-                        }
-
-                        try {
-                            const delta = JSON.parse(data).choices[0]?.delta;
-                            let hasUpdate = false;
-
-                            if (delta?.content) {
-                                currentMessage.content += delta.content;
-                                hasUpdate = true;
-                            }
-                            if (delta?.reasoning_content) {
-                                currentMessage.reasoning_content += delta.reasoning_content;
-                                hasUpdate = true;
-                            }
-
-                            if (hasUpdate) {
-                                if (typeof lifecycle?.onStreamMessage === 'function') {
-                                    void Promise.resolve(lifecycle.onStreamMessage({
-                                        delta,
-                                        currentMessage: { ...currentMessage },
-                                        chatId,
-                                        url: resolvedUrl,
-                                    })).catch((error) => {
-                                        console.error('[Cerebr] Stream lifecycle handler failed:', error);
-                                    });
-                                }
-
-                                if (detectMisfiledThinkSilently && !didDispatchAnyUpdate && !currentMessage.reasoning_content) {
-                                    const contentStart = String(currentMessage.content || '').trimStart().toLowerCase();
-                                    if (misfiledThinkSilentlyPrefixes.some((p) => contentStart.startsWith(p))) {
-                                        const error = createChatError(
-                                            'CEREBR_MISFILED_THINK_SILENTLY',
-                                            'Detected misfiled reasoning content in content field',
-                                            {
-                                                contentPreview: currentMessage.content,
-                                            }
-                                        );
-                                        throw error;
-                                    }
-
-                                    // 首次分发前：若 content 仍可能是前缀的一部分（例如只收到 "t"/"thi"），先不更新 UI/历史
-                                    if (misfiledThinkSilentlyPrefixes.some((p) => p.startsWith(contentStart))) {
-                                        continue;
-                                    }
-                                }
-
-                                if (!updateTimeout) {
-                                     // 如果距离上次更新超过了间隔，则立即更新
-                                    if (Date.now() - lastUpdateTime > UPDATE_INTERVAL) {
-                                        dispatchUpdate();
-                                    } else {
-                                         // 否则，设置一个定时器，在间隔的剩余时间后更新
-                                        updateTimeout = setTimeout(dispatchUpdate, UPDATE_INTERVAL - (Date.now() - lastUpdateTime));
-                                    }
-                                }
-                            }
-                        } catch (e) {
-                            if (e?.code === 'CEREBR_MISFILED_THINK_SILENTLY') {
-                                throw e;
-                            }
-                            console.error('解析数据时出错:', e);
-                        }
+                    try {
+                        handleSseLine(line);
+                    } catch (e) {
+                        if (e?.code) throw e;
+                        console.error('解析数据时出错:', e);
                     }
                 }
             }
 
-            return currentMessage;
+            if ((currentMessage.content || currentMessage.reasoning_content) && updateTimeout) {
+                dispatchUpdate();
+            }
+            return {
+                content: currentMessage.content,
+                reasoning_content: currentMessage.reasoning_content,
+            };
         } catch (error) {
             if (typeof lifecycle?.onRequestError === 'function' && error?.name !== 'AbortError') {
                 try {

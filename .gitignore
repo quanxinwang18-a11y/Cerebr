@@ -2,6 +2,5 @@
 .wrangler
 node_modules
 package-lock.json
-package.json
 _site
 pages-site

@@ -32,8 +32,14 @@ import {
     initializeChatList
 } from '../../components/chat-list.js';
 import { initWebpageMenu, getEnabledTabsContent } from '../../components/webpage-menu.js';
-import { normalizeChatCompletionsUrl } from '../../utils/api-url.js';
-import { DEFAULT_REASONING_EFFORT, normalizeReasoningEffort } from '../../utils/reasoning-effort.js';
+import {
+    API_CREDENTIALS_STORAGE_KEY,
+    buildApiCredentialsMap,
+    createDefaultApiConfig,
+    mergeApiCredentials,
+    normalizeApiConfigRecord,
+    stripApiConfigForSync,
+} from '../../runtime/chat/api-config.js';
 import { syncChatBottomExtraPadding } from '../../utils/scroll.js';
 import { createReadingProgressManager } from '../../utils/reading-progress.js';
 import { applyI18n, initI18n, getLanguagePreference, setLanguagePreference, reloadI18n, t } from '../../utils/i18n.js';
@@ -1990,31 +1996,9 @@ async function onDomReady() {
         }
     };
 
-    const normalizeApiConfig = (config) => {
-        const normalized = { ...(config || {}) };
-        ensureConfigId(normalized);
-        normalized.apiKey = normalized.apiKey ?? '';
-        normalized.baseUrl = normalizeChatCompletionsUrl(
-            normalized.baseUrl ?? 'https://api.0-0.pro/v1/chat/completions'
-        ) || 'https://api.0-0.pro/v1/chat/completions';
-        normalized.modelName = normalized.modelName ?? 'gpt-4o';
-        normalized.advancedSettings = {
-            ...(normalized.advancedSettings || {}),
-            systemPrompt: normalized.advancedSettings?.systemPrompt ?? '',
-            reasoningEffort: normalizeReasoningEffort(normalized.advancedSettings?.reasoningEffort),
-            isExpanded: normalized.advancedSettings?.isExpanded ?? false,
-        };
-        return normalized;
-    };
-
-    const stripApiConfigForSync = (config) => {
-        const advancedSettings = { ...(config.advancedSettings || {}) };
-        delete advancedSettings.systemPrompt;
-        return {
-            ...config,
-            advancedSettings,
-        };
-    };
+    const normalizeApiConfig = (config) => normalizeApiConfigRecord(config, {
+        generateId: generateConfigId,
+    });
 
     const readApiConfigMeta = async () => {
         if (isExtensionEnvironment) {
@@ -2212,24 +2196,31 @@ async function onDomReady() {
     // 从存储加载配置
     async function loadAPIConfigs() {
         try {
-            const result = await readApiConfigMeta();
+            const [result, credentialsResult] = await Promise.all([
+                readApiConfigMeta(),
+                storageAdapter.get(API_CREDENTIALS_STORAGE_KEY),
+            ]);
+            const credentialsById = credentialsResult?.[API_CREDENTIALS_STORAGE_KEY]
+                && typeof credentialsResult[API_CREDENTIALS_STORAGE_KEY] === 'object'
+                ? credentialsResult[API_CREDENTIALS_STORAGE_KEY]
+                : {};
+            let needsCredentialMigration = false;
 
             // 分别检查每个配置项
             if (result.apiConfigs) {
-                const nextConfigs = result.apiConfigs.map(normalizeApiConfig);
+                const nextConfigs = result.apiConfigs.map((rawConfig) => {
+                    const normalized = normalizeApiConfig(rawConfig);
+                    const localCredentials = credentialsById[normalized.id];
+                    if (!localCredentials && (rawConfig?.apiKey || rawConfig?.headers?.length)) {
+                        needsCredentialMigration = true;
+                    }
+                    return normalizeApiConfig(mergeApiCredentials(normalized, localCredentials));
+                });
                 apiConfigs.splice(0, apiConfigs.length, ...nextConfigs);
             } else {
-                apiConfigs.splice(0, apiConfigs.length, {
+                apiConfigs.splice(0, apiConfigs.length, createDefaultApiConfig({
                     id: generateConfigId(),
-                    apiKey: '',
-                    baseUrl: 'https://api.0-0.pro/v1/chat/completions',
-                    modelName: 'gpt-4o',
-                    advancedSettings: {
-                        systemPrompt: '',
-                        reasoningEffort: DEFAULT_REASONING_EFFORT,
-                        isExpanded: false,
-                    },
-                });
+                }));
                 // 只有在没有任何配置的情况下才保存默认配置
                 await saveAPIConfigs();
             }
@@ -2295,7 +2286,7 @@ async function onDomReady() {
             }
 
             // 若发现旧版本把 systemPrompt 存在了 apiConfigs 中，迁移一次以避免再次触发 sync 单条目限制
-            if (needsMigrationSave) {
+            if (needsMigrationSave || needsCredentialMigration) {
                 await saveAPIConfigs();
             }
 
@@ -2304,17 +2295,9 @@ async function onDomReady() {
         } catch (error) {
             console.error('加载 API 配置失败:', error);
             // 只有在出错的情况下才使用默认值
-            apiConfigs.splice(0, apiConfigs.length, {
+            apiConfigs.splice(0, apiConfigs.length, createDefaultApiConfig({
                 id: generateConfigId(),
-                apiKey: '',
-                baseUrl: 'https://api.0-0.pro/v1/chat/completions',
-                modelName: 'gpt-4o',
-                advancedSettings: {
-                    systemPrompt: '',
-                    reasoningEffort: DEFAULT_REASONING_EFFORT,
-                    isExpanded: false,
-                },
-            });
+            }));
             selectedConfigIndex = 0;
             renderAPICardsWithCallbacks();
         }
@@ -2371,7 +2354,9 @@ async function onDomReady() {
             }
             selectedConfigIndex = Math.max(0, Math.min(selectedConfigIndex, apiConfigs.length - 1));
 
-            const localPayload = {};
+            const localPayload = {
+                [API_CREDENTIALS_STORAGE_KEY]: buildApiCredentialsMap(apiConfigs),
+            };
             const apiConfigMetaPayload = {
                 apiConfigs: apiConfigs.map(stripApiConfigForSync),
                 selectedConfigIndex,

@@ -166,9 +166,22 @@
                 <div class="card-content">
                     <div class="api-form">
                         <div class="form-group">
+                            <label data-i18n="api_type_label">API 格式</label>
+                            <select class="api-type" name="apiType">
+                                <option value="openai-completions">OpenAI Chat Completions</option>
+                                <option value="anthropic-messages">Anthropic Messages</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
                             <div class="form-group-header">
                                 <label data-i18n="api_key_label">API Key</label>
                                 <div class="card-actions">
+                                    <button class="card-button api-key-visibility-btn" type="button" aria-label="显示 API Key" data-i18n-attr="aria-label:api_key_show_aria">
+                                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                                            <path d="M1.5 8C2.8 5.5 5 4 8 4s5.2 1.5 6.5 4C13.2 10.5 11 12 8 12S2.8 10.5 1.5 8Z" stroke="currentColor" stroke-width="1.25"/>
+                                            <circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.25"/>
+                                        </svg>
+                                    </button>
                                     <button class="card-button duplicate-btn" aria-label="复制该配置" data-i18n-attr="aria-label:api_duplicate_config_aria">
                                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                                             <path d="M13 5H7V11H13V5Z" stroke="currentColor" stroke-width="1.5"/>
@@ -183,7 +196,16 @@
                                     </button>
                                 </div>
                             </div>
-                            <input type="text" class="api-key" name="apiKey" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="输入 API Key" data-i18n-attr="placeholder:api_key_placeholder">
+                            <input type="password" class="api-key" name="apiKey" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="输入 API Key" data-i18n-attr="placeholder:api_key_placeholder">
+                        </div>
+                        <div class="form-group">
+                            <label data-i18n="api_auth_mode_label">认证方式</label>
+                            <select class="auth-mode" name="authMode">
+                                <option value="auto" data-i18n="api_auth_mode_auto">自动</option>
+                                <option value="bearer">Authorization: Bearer</option>
+                                <option value="x-api-key">x-api-key</option>
+                                <option value="none" data-i18n="api_auth_mode_none">无</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label data-i18n="base_url_label">Base URL</label>
@@ -223,6 +245,21 @@
                                             <option value="high">high</option>
                                             <option value="xhigh">xhigh</option>
                                         </select>
+                                    </div>
+                                    <div class="setting-item max-tokens-setting">
+                                        <label class="setting-label max-tokens-label" data-i18n="api_max_tokens_label">最大输出 Tokens</label>
+                                        <p class="setting-description max-tokens-hint" data-i18n="api_max_tokens_hint">Anthropic 必填；OpenAI 留空则由服务端决定。</p>
+                                        <input type="number" class="max-tokens" name="maxTokens" min="1" step="1" inputmode="numeric">
+                                    </div>
+                                    <div class="setting-item custom-headers-setting">
+                                        <div class="custom-headers-heading">
+                                            <div>
+                                                <span class="setting-label" data-i18n="api_custom_headers_label">自定义 Headers</span>
+                                                <p class="setting-description" data-i18n="api_custom_headers_hint">Header 值仅保存在本机。</p>
+                                            </div>
+                                            <button type="button" class="custom-header-add" data-i18n="api_custom_header_add">添加</button>
+                                        </div>
+                                        <div class="custom-headers-list"></div>
                                     </div>
                                 </div>
                             </div>
