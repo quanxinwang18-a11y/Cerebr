@@ -33,7 +33,5 @@ export async function getAppVersion() {
 
     return await fetchManifestVersion('./manifest.json')
         || await fetchManifestVersion('/manifest.json')
-        || await fetchManifestVersion('./manifest.firefox.json')
-        || await fetchManifestVersion('/manifest.firefox.json')
         || '';
 }

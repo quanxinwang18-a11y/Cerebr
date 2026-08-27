@@ -440,10 +440,19 @@ export function createChatPipeline({
         }
     }
 
-    async function sendMessage() {
+    async function submitMessage({
+        draftOverride = null,
+        preserveInput = false,
+        source = 'composer',
+    } = {}) {
         abortActiveReply();
 
-        const { message, imageTags } = getFormattedMessageContent(messageInput);
+        const { message, imageTags } = draftOverride && typeof draftOverride === 'object'
+            ? {
+                message: String(draftOverride.message || ''),
+                imageTags: Array.isArray(draftOverride.imageTags) ? draftOverride.imageTags : [],
+            }
+            : getFormattedMessageContent(messageInput);
         if (!message.trim() && imageTags.length === 0) return;
 
         try {
@@ -453,20 +462,31 @@ export function createChatPipeline({
             }
 
             const stickToBottomOnSend = shouldStickToBottom(chatContainer);
+            const webpageInfo = await getWebpageInfo();
+            const contextSources = Array.isArray(webpageInfo?.pages)
+                ? webpageInfo.pages.map((page) => ({
+                    title: String(page?.title || ''),
+                    url: String(page?.url || ''),
+                    isCurrent: !!page?.isCurrent,
+                })).filter((page) => page.title || page.url)
+                : [];
+            const initialUserMessage = {
+                role: 'user',
+                content: buildMessageContent(message, imageTags),
+                ...(contextSources.length > 0 ? { contextSources } : {}),
+                ...(source && source !== 'composer' ? { source } : {}),
+            };
             const initialPayload = {
                 mode: 'send',
                 draft: {
                     message,
                     imageTags,
                 },
-                userMessage: {
-                    role: 'user',
-                    content: buildMessageContent(message, imageTags),
-                },
+                userMessage: initialUserMessage,
                 messages: cloneMessages(currentChat.messages),
                 apiConfig: getSelectedApiConfig(),
                 userLanguage: getUserLanguage(),
-                webpageInfo: await getWebpageInfo(),
+                webpageInfo,
             };
 
             const beforeSendResult = pluginRuntime?.runBeforeSend
@@ -485,6 +505,12 @@ export function createChatPipeline({
                 initialPayload
             );
             const userMessage = resolveUserMessage(effectivePayload, initialPayload);
+            if (contextSources.length > 0 && !Array.isArray(userMessage.contextSources)) {
+                userMessage.contextSources = contextSources;
+            }
+            if (source && source !== 'composer' && !userMessage.source) {
+                userMessage.source = source;
+            }
 
             appendMessage({
                 text: userMessage,
@@ -492,11 +518,13 @@ export function createChatPipeline({
                 chatContainer,
             });
 
-            clearMessageInput(messageInput, uiConfig);
-            messageInput.focus();
+            if (!preserveInput) {
+                clearMessageInput(messageInput, uiConfig);
+                messageInput.focus();
+            }
             setThinkingPlaceholder();
 
-            if (currentChat.id) {
+            if (currentChat.id && !preserveInput) {
                 await storageAdapter.remove(getDraftKeyForChatId(currentChat.id));
             }
 
@@ -532,9 +560,25 @@ export function createChatPipeline({
         }
     }
 
+    async function sendMessage() {
+        return submitMessage();
+    }
+
+    async function sendText(text, options = {}) {
+        return submitMessage({
+            draftOverride: {
+                message: String(text || ''),
+                imageTags: [],
+            },
+            preserveInput: options.preserveInput !== false,
+            source: options.source || 'programmatic',
+        });
+    }
+
     return {
         abortControllerRef,
         sendMessage,
+        sendText,
         regenerateMessage,
         abortActiveReply,
         getCurrentChat() {

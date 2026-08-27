@@ -77,8 +77,7 @@ const tryImport = async (specifier) => {
 
 const fetchManifestVersion = async () => {
     const candidates = [
-        new URL('../manifest.json', import.meta.url),
-        new URL('../manifest.firefox.json', import.meta.url)
+        new URL('../manifest.json', import.meta.url)
     ];
 
     for (const url of candidates) {

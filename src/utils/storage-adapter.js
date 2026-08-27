@@ -485,7 +485,7 @@ export const browserAdapter = {
             // We listen for messages from the background script instead.
             // chrome.tabs.onActivated.addListener(callback);
 
-            // 兼容 Firefox 需要
+            // Side Panel 通过后台广播接收标签页变化
             chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 if (message.type === 'TAB_ACTIVATED') {
                     callback(message.payload);
@@ -568,7 +568,7 @@ function logStorageUsage() {
             console.warn("[Cerebr] 获取插件本地存储空间失败:", error);
         });
     }
-    // 在 Firefox 等其他插件环境中，使用手动计算作为回退，兼容 Firefox 需要
+    // 其它扩展运行时使用手动计算作为回退
     else if (isExtensionEnvironment) {
         chrome.storage.local.get(null, (items) => {
             if (chrome.runtime.lastError) {
@@ -579,7 +579,7 @@ function logStorageUsage() {
                 const jsonString = JSON.stringify(items);
                 // 使用 Blob 来获取 UTF-8 编码的字节大小，这比简单地计算字符串长度更准确
                 const bytes = new Blob([jsonString]).size;
-                console.log(`[Cerebr] 插件(Firefox/其他)本地存储估算占用: ${(bytes / (1024 * 1024)).toFixed(2)} MB`);
+                console.log(`[Cerebr] 插件本地存储估算占用: ${(bytes / (1024 * 1024)).toFixed(2)} MB`);
             } catch (e) {
                 console.error("[Cerebr] 手动计算存储失败 (JSON序列化出错):", e);
             }

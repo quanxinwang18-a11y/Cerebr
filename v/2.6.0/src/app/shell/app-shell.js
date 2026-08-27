@@ -32,8 +32,14 @@ import {
     initializeChatList
 } from '../../components/chat-list.js';
 import { initWebpageMenu, getEnabledTabsContent } from '../../components/webpage-menu.js';
-import { normalizeChatCompletionsUrl } from '../../utils/api-url.js';
-import { DEFAULT_REASONING_EFFORT, normalizeReasoningEffort } from '../../utils/reasoning-effort.js';
+import {
+    API_CREDENTIALS_STORAGE_KEY,
+    buildApiCredentialsMap,
+    createDefaultApiConfig,
+    mergeApiCredentials,
+    normalizeApiConfigRecord,
+    stripApiConfigForSync,
+} from '../../runtime/chat/api-config.js';
 import { syncChatBottomExtraPadding } from '../../utils/scroll.js';
 import { createReadingProgressManager } from '../../utils/reading-progress.js';
 import { applyI18n, initI18n, getLanguagePreference, setLanguagePreference, reloadI18n, t } from '../../utils/i18n.js';
@@ -58,6 +64,15 @@ import {
     syncDefaultChatForLocale
 } from '../../utils/default-chat.js';
 import { createShellPluginRuntime } from '../../plugin/shell/shell-plugin-runtime.js';
+import {
+    createNativeSidePanelClient,
+    isNativeSidePanelPage,
+} from '../../runtime/ui/native-side-panel-client.js';
+import {
+    buildChatMarkdown,
+    buildChatMarkdownFilename,
+    downloadChatMarkdown,
+} from '../../utils/chat-markdown-export.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -66,6 +81,7 @@ let userQuestions = [];
 // 加载保存的 API 配置
 let apiConfigs = [];
 let selectedConfigIndex = 0;
+const LEARNING_PROMPT_STORAGE_KEY = 'learningPromptV1';
 
 async function onDomReady() {
     try {
@@ -116,6 +132,10 @@ async function onDomReady() {
         const pluginShellPageTitle = document.getElementById('plugin-shell-page-title');
         const pluginShellPageSubtitle = document.getElementById('plugin-shell-page-subtitle');
         const pluginShellPageBody = document.getElementById('plugin-shell-page-body');
+        const learningPromptAction = document.getElementById('learning-prompt-action');
+        const exportMarkdownAction = document.getElementById('export-markdown-action');
+        const learningPromptInput = document.getElementById('learning-prompt');
+        const learningPreferencesCard = document.getElementById('learning-preferences-card');
         const shellSlotContainers = Object.fromEntries(
             Array.from(document.querySelectorAll('[data-plugin-slot^="shell."]'))
                 .map((element) => [element.dataset.pluginSlot, element])
@@ -1044,6 +1064,11 @@ async function onDomReady() {
             uiConfig
         });
     });
+    if (isExtensionEnvironment && isNativeSidePanelPage()) {
+        const nativeSidePanelClient = createNativeSidePanelClient();
+        await nativeSidePanelClient.connect();
+        window.addEventListener('pagehide', () => nativeSidePanelClient.stop(), { once: true });
+    }
     notifyParentIframeReady();
 
     let settingsMenuOpenMode = null;
@@ -1896,6 +1921,47 @@ async function onDomReady() {
         });
     }
 
+    let learningPromptSaveTimer = 0;
+    let learningPromptValue = '';
+
+    const persistLearningPrompt = async () => {
+        if (!learningPromptInput) return;
+        if (learningPromptSaveTimer) {
+            clearTimeout(learningPromptSaveTimer);
+            learningPromptSaveTimer = 0;
+        }
+        learningPromptValue = learningPromptInput.value || '';
+        await syncStorageAdapter.set({
+            [LEARNING_PROMPT_STORAGE_KEY]: learningPromptValue,
+        });
+    };
+
+    if (learningPromptInput) {
+        const storedLearningPrompt = await syncStorageAdapter.get(LEARNING_PROMPT_STORAGE_KEY).catch(() => ({}));
+        learningPromptValue = typeof storedLearningPrompt?.[LEARNING_PROMPT_STORAGE_KEY] === 'string'
+            ? storedLearningPrompt[LEARNING_PROMPT_STORAGE_KEY]
+            : '';
+        learningPromptInput.value = learningPromptValue;
+        learningPromptInput.addEventListener('input', () => {
+            learningPromptValue = learningPromptInput.value || '';
+            if (learningPromptSaveTimer) clearTimeout(learningPromptSaveTimer);
+            learningPromptSaveTimer = window.setTimeout(() => {
+                learningPromptSaveTimer = 0;
+                void persistLearningPrompt().catch((error) => {
+                    console.error('[Cerebr] 保存学习提示词失败:', error);
+                });
+            }, 400);
+        });
+        learningPromptInput.addEventListener('change', () => {
+            void persistLearningPrompt().catch((error) => {
+                console.error('[Cerebr] 保存学习提示词失败:', error);
+            });
+        });
+        window.addEventListener('pagehide', () => {
+            void persistLearningPrompt().catch(() => {});
+        });
+    }
+
     const commitPendingPreferences = async () => {
         const activeElement = document.activeElement;
         if (preferencesSettings?.contains(activeElement) && typeof activeElement?.blur === 'function') {
@@ -1914,6 +1980,7 @@ async function onDomReady() {
         if (preferencesDeveloperMode) {
             await persistDeveloperModePreference(preferencesDeveloperMode.checked);
         }
+        await persistLearningPrompt();
     };
 
     if (preferencesToggle && preferencesSettings) {
@@ -1936,6 +2003,75 @@ async function onDomReady() {
             await commitPendingPreferences();
             openExternal(FEEDBACK_URL);
             preferencesSettings?.classList.remove('visible');
+        });
+    }
+
+    if (learningPromptAction) {
+        learningPromptAction.addEventListener('click', async () => {
+            const prompt = String(learningPromptInput?.value ?? learningPromptValue).trim();
+            if (!prompt) {
+                preferencesSettings?.classList.add('visible');
+                closeSettingsMenu();
+                showToast(t('learning_prompt_required'), { type: 'info', durationMs: 2400 });
+                requestAnimationFrame(() => {
+                    learningPreferencesCard?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+                    learningPromptInput?.focus?.({ preventScroll: true });
+                });
+                return;
+            }
+
+            learningPromptAction.disabled = true;
+            try {
+                await persistLearningPrompt();
+                await chatController.sendText(prompt, {
+                    preserveInput: true,
+                    source: 'learning-prompt',
+                });
+            } finally {
+                learningPromptAction.disabled = false;
+            }
+        });
+    }
+
+    if (exportMarkdownAction) {
+        exportMarkdownAction.addEventListener('click', async () => {
+            const currentChat = chatManager.getCurrentChat();
+            const exportableMessages = currentChat?.messages?.filter?.((message) => (
+                message?.role === 'user' || message?.role === 'assistant'
+            )) || [];
+            if (!currentChat || exportableMessages.length === 0) {
+                showToast(t('learning_export_empty'), { type: 'info', durationMs: 2200 });
+                return;
+            }
+
+            const currentTab = await browserAdapter.getCurrentTab().catch(() => null);
+            const exportedAt = new Date();
+            const markdown = buildChatMarkdown({
+                chat: currentChat,
+                exportedAt,
+                fallbackSource: currentTab ? {
+                    title: currentTab.title || '',
+                    url: currentTab.url || '',
+                } : null,
+                labels: {
+                    exportedAt: t('learning_export_time'),
+                    sources: t('learning_export_sources'),
+                    conversation: t('learning_export_conversation'),
+                    user: t('learning_export_user'),
+                    assistant: t('learning_export_assistant'),
+                    image: t('learning_export_image'),
+                    exportPage: t('learning_export_current_page'),
+                },
+            });
+            if (!markdown) {
+                showToast(t('learning_export_empty'), { type: 'info', durationMs: 2200 });
+                return;
+            }
+            downloadChatMarkdown(
+                markdown,
+                buildChatMarkdownFilename(currentChat, exportedAt)
+            );
+            showToast(t('learning_export_success'), { type: 'success', durationMs: 1800 });
         });
     }
 
@@ -1990,31 +2126,9 @@ async function onDomReady() {
         }
     };
 
-    const normalizeApiConfig = (config) => {
-        const normalized = { ...(config || {}) };
-        ensureConfigId(normalized);
-        normalized.apiKey = normalized.apiKey ?? '';
-        normalized.baseUrl = normalizeChatCompletionsUrl(
-            normalized.baseUrl ?? 'https://api.0-0.pro/v1/chat/completions'
-        ) || 'https://api.0-0.pro/v1/chat/completions';
-        normalized.modelName = normalized.modelName ?? 'gpt-4o';
-        normalized.advancedSettings = {
-            ...(normalized.advancedSettings || {}),
-            systemPrompt: normalized.advancedSettings?.systemPrompt ?? '',
-            reasoningEffort: normalizeReasoningEffort(normalized.advancedSettings?.reasoningEffort),
-            isExpanded: normalized.advancedSettings?.isExpanded ?? false,
-        };
-        return normalized;
-    };
-
-    const stripApiConfigForSync = (config) => {
-        const advancedSettings = { ...(config.advancedSettings || {}) };
-        delete advancedSettings.systemPrompt;
-        return {
-            ...config,
-            advancedSettings,
-        };
-    };
+    const normalizeApiConfig = (config) => normalizeApiConfigRecord(config, {
+        generateId: generateConfigId,
+    });
 
     const readApiConfigMeta = async () => {
         if (isExtensionEnvironment) {
@@ -2212,24 +2326,31 @@ async function onDomReady() {
     // 从存储加载配置
     async function loadAPIConfigs() {
         try {
-            const result = await readApiConfigMeta();
+            const [result, credentialsResult] = await Promise.all([
+                readApiConfigMeta(),
+                storageAdapter.get(API_CREDENTIALS_STORAGE_KEY),
+            ]);
+            const credentialsById = credentialsResult?.[API_CREDENTIALS_STORAGE_KEY]
+                && typeof credentialsResult[API_CREDENTIALS_STORAGE_KEY] === 'object'
+                ? credentialsResult[API_CREDENTIALS_STORAGE_KEY]
+                : {};
+            let needsCredentialMigration = false;
 
             // 分别检查每个配置项
             if (result.apiConfigs) {
-                const nextConfigs = result.apiConfigs.map(normalizeApiConfig);
+                const nextConfigs = result.apiConfigs.map((rawConfig) => {
+                    const normalized = normalizeApiConfig(rawConfig);
+                    const localCredentials = credentialsById[normalized.id];
+                    if (!localCredentials && (rawConfig?.apiKey || rawConfig?.headers?.length)) {
+                        needsCredentialMigration = true;
+                    }
+                    return normalizeApiConfig(mergeApiCredentials(normalized, localCredentials));
+                });
                 apiConfigs.splice(0, apiConfigs.length, ...nextConfigs);
             } else {
-                apiConfigs.splice(0, apiConfigs.length, {
+                apiConfigs.splice(0, apiConfigs.length, createDefaultApiConfig({
                     id: generateConfigId(),
-                    apiKey: '',
-                    baseUrl: 'https://api.0-0.pro/v1/chat/completions',
-                    modelName: 'gpt-4o',
-                    advancedSettings: {
-                        systemPrompt: '',
-                        reasoningEffort: DEFAULT_REASONING_EFFORT,
-                        isExpanded: false,
-                    },
-                });
+                }));
                 // 只有在没有任何配置的情况下才保存默认配置
                 await saveAPIConfigs();
             }
@@ -2295,7 +2416,7 @@ async function onDomReady() {
             }
 
             // 若发现旧版本把 systemPrompt 存在了 apiConfigs 中，迁移一次以避免再次触发 sync 单条目限制
-            if (needsMigrationSave) {
+            if (needsMigrationSave || needsCredentialMigration) {
                 await saveAPIConfigs();
             }
 
@@ -2304,17 +2425,9 @@ async function onDomReady() {
         } catch (error) {
             console.error('加载 API 配置失败:', error);
             // 只有在出错的情况下才使用默认值
-            apiConfigs.splice(0, apiConfigs.length, {
+            apiConfigs.splice(0, apiConfigs.length, createDefaultApiConfig({
                 id: generateConfigId(),
-                apiKey: '',
-                baseUrl: 'https://api.0-0.pro/v1/chat/completions',
-                modelName: 'gpt-4o',
-                advancedSettings: {
-                    systemPrompt: '',
-                    reasoningEffort: DEFAULT_REASONING_EFFORT,
-                    isExpanded: false,
-                },
-            });
+            }));
             selectedConfigIndex = 0;
             renderAPICardsWithCallbacks();
         }
@@ -2322,7 +2435,7 @@ async function onDomReady() {
 
     // 监听标签页切换
     browserAdapter.onTabActivated(async (activeInfo) => {
-        // background 会广播给所有 sidebar 实例：只在当前可见的实例里处理，避免跨 tab 状态串扰
+        // Native Side Panel is shared by the window, so it follows the active tab explicitly.
         if (document.hidden) return;
         try {
             if (activeInfo?.tabId || activeInfo?.windowId) {
@@ -2334,15 +2447,31 @@ async function onDomReady() {
         } catch {
             // ignore
         }
+        await Promise.all([
+            draftController.saveDraftNow().catch(() => {}),
+            readingProgressManager.saveNow().catch(() => {}),
+            chatManager.flushNow().catch(() => {}),
+        ]);
+
         // 同步API配置
         await loadAPIConfigs();
         renderAPICardsWithCallbacks();
 
-        // 同步对话数据（对话列表在打开时再渲染，避免后台渲染造成额外布局开销）
+        const previousChatId = chatManager.getCurrentChat()?.id || null;
         await chatManager.initialize();
+        const currentChat = chatManager.getCurrentChat();
+        if (currentChat) {
+            if (previousChatId !== currentChat.id) {
+                document.dispatchEvent(new CustomEvent('cerebr:chatSwitched', {
+                    detail: { chatId: currentChat.id },
+                }));
+            }
+            await loadChatContent(currentChat, chatContainer);
+            chatContainerManager.initializeUserQuestions();
+            await readingProgressManager.restore(currentChat.id).catch(() => {});
+        }
 
         // 如果当前对话为空，则重置网页内容开关
-        const currentChat = chatManager.getCurrentChat();
         if (currentChat && (currentChat.messages.length === 0 || isDefaultChatSeedOnly(currentChat))) {
             const currentTab = await browserAdapter.getCurrentTab();
             if (currentTab?.id) {
@@ -2371,7 +2500,9 @@ async function onDomReady() {
             }
             selectedConfigIndex = Math.max(0, Math.min(selectedConfigIndex, apiConfigs.length - 1));
 
-            const localPayload = {};
+            const localPayload = {
+                [API_CREDENTIALS_STORAGE_KEY]: buildApiCredentialsMap(apiConfigs),
+            };
             const apiConfigMetaPayload = {
                 apiConfigs: apiConfigs.map(stripApiConfigForSync),
                 selectedConfigIndex,

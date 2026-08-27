@@ -6,12 +6,6 @@
 <a href="https://chromewebstore.google.com/detail/cerebr/kjojanemcpiamhohkcpcddpkbnciojkj">
     <img src="https://img.shields.io/chrome-web-store/v/kjojanemcpiamhohkcpcddpkbnciojkj?color=blue&label=Chrome%20商店&logo=google-chrome&logoColor=white" alt="Chrome Web Store">
 </a>
-<a href="https://microsoftedge.microsoft.com/addons/detail/cerebr/gafelkdahhgmlccdmpnohckjfkmcdlfe">
-    <img src="https://img.shields.io/badge/dynamic/json?label=Edge%20商店&query=%24.version&url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fgafelkdahhgmlccdmpnohckjfkmcdlfe&logo=microsoft-edge&logoColor=white" alt="Edge Add-on">
-</a>
-<a href="https://addons.mozilla.org/en-US/firefox/addon/cerebr/">
-    <img src="https://img.shields.io/amo/v/cerebr?label=Firefox%20商店&logo=firefox&logoColor=white" alt="Firefox Add-on">
-</a>
   <a href="https://t.me/uni_api">
     <img src="https://img.shields.io/badge/Join Telegram Group-blue?&logo=telegram">
   </a>
@@ -23,16 +17,16 @@
 
 ![screenshot](./statics/image.png)
 
-Cerebr 是一款强大的浏览器 AI 助手扩展，现已支持 Chrome、Firefox 和 Edge，专注于提升您的工作效率和学习体验。"Cerebr"源自拉丁语词根，与"大脑"或"脑"相关。这个命名体现了我们的愿景：整合 Claude、OpenAI 等 AI 的强大能力，使 Cerebr 成为您的第二大脑，为您提供深度阅读和理解支持。
+Cerebr 是一款面向 Chrome 141+ 的浏览器 AI 助手扩展，专注于提升文章阅读、学习和整理效率。"Cerebr"源自拉丁语词根，与"大脑"或"脑"相关。这个命名体现了我们的愿景：整合 Claude、OpenAI 等 AI 的强大能力，使 Cerebr 成为您的第二大脑，为您提供深度阅读和理解支持。
 
 在尝试了市面上现有的浏览器 AI 助手后，我们发现它们要么有使用次数限制，要么界面过于花哨。Cerebr 应运而生，专注于提供一个简洁、高效、无干扰的 AI 助手体验。
 
 ## ✨ 核心特性
 
-- 🎯 **智能侧边栏** - 通过快捷键(Windows: `Alt+Z` / Mac: `Ctrl+Z`)快速唤出,随时随地与 AI 对话
-- 🔄 **多 API 支持** - 支持配置多个 API,灵活切换不同的 AI 助手
-- 🔁 **配置同步** - 支持跨浏览器的 API 配置同步，轻松在不同设备间共享设置
-- 💻 **多平台支持** - 已上架 Chrome、Firefox 和 Edge 商店，在不同浏览器中提供一致的体验。
+- 🎯 **Chrome 原生侧边栏** - 通过快捷键(Windows: `Alt+Z` / Mac: `Ctrl+Z`)打开浏览器原生 Side Panel
+- 🔄 **多 Provider 支持** - 支持 OpenAI Chat Completions 与 Anthropic Messages 格式、自定义端点和 Header
+- 🔁 **安全配置同步** - 模型与端点等非敏感配置可同步，API Key 与 Header 值仅保存在本机
+- 📚 **文章学习操作** - 一键发送自定义学习提示词，并可将完整会话导出为 Markdown
 - 📝 **全能问答** - 支持网页内容问答、PDF 文档问答、图片问答等多种场景
 - 🎨 **优雅渲染** - 完美支持 Markdown 文本渲染、LaTeX 数学公式显示
 - ⚡ **实时响应** - 采用流式输出,即时获取 AI 回复
@@ -42,18 +36,18 @@ Cerebr 是一款强大的浏览器 AI 助手扩展，现已支持 Chrome、Firef
 
 ## 🛠️ 技术特性
 
-- 💾 **状态持久化** - 自动保存对话历史、侧边栏状态等
-- 🔄 **配置同步** - 支持通过浏览器原生同步API实现跨设备配置共享
+- 💾 **状态持久化** - 自动保存对话历史、草稿与阅读进度
+- 🔄 **配置同步** - 支持通过 Chrome 同步 API 共享非敏感配置
 - 🔍 **智能提取** - 自动识别并提取网页/PDF 内容
 - ⌨️ **快捷操作** - 支持快捷键清空聊天(Windows: `Alt+X` / Mac: `Ctrl+X`)、上下键快速调用历史问题
 - 🔒 **安全可靠** - 支持多 API Key 管理,数据本地存储
-- 🎭 **兼容性强** - 官方支持 Chrome、Firefox、Edge 等主流浏览器，适配各类网页环境。
+- 🎭 **版本要求** - Chrome 141 或更高版本
 
 ## 🎮 使用指南
 
 1. 🔑 **配置 API**
    - 点击设置按钮
-   - 填写 API Key、Base URL 和模型名称
+   - 选择 OpenAI 或 Anthropic 格式，填写 API Key、Base URL 和模型名称
    - 支持添加多个 API 配置
 
 2. 💬 **开始对话**
@@ -127,7 +121,7 @@ Cerebr 是一款强大的浏览器 AI 助手扩展，现已支持 Chrome、Firef
 
 ### Web 版本特点
 - 🌐 无需安装，通过任何浏览器访问
-- 💻 与 Chrome 扩展版本具有相同的强大功能
+- 💻 保留聊天、配置、主题和 Markdown 导出；网页内容提取仅在 Chrome 扩展中可用
 - ☁️ 部署自己的实例以获得更好的控制
 - 🔒 安全私密的部署方案
 

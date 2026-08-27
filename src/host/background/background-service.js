@@ -907,7 +907,7 @@ function releasePDF(requestId) {
   return { success: true };
 }
 
-// 监听标签页激活事件，并通知相关方，兼容 Firefox 需要
+// 监听标签页激活事件，并通知原生 Side Panel
 chrome.tabs.onActivated.addListener(activeInfo => {
   chrome.runtime.sendMessage({
     type: 'TAB_ACTIVATED',

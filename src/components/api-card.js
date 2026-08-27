@@ -395,6 +395,11 @@ function createAPICard({
         if (nextType === API_TYPE_ANTHROPIC_MESSAGES && !maxTokensInput.value) {
             maxTokensInput.value = '8192';
         }
+        if (nextType === API_TYPE_ANTHROPIC_MESSAGES && modelNameInput.value.trim() === 'gpt-4o') {
+            modelNameInput.value = '';
+        } else if (nextType === API_TYPE_OPENAI_COMPLETIONS && !modelNameInput.value.trim()) {
+            modelNameInput.value = 'gpt-4o';
+        }
         updateReasoningEffortVisibility();
         onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
     });

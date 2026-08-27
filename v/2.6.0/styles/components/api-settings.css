@@ -138,7 +138,10 @@
 
 .form-group input,
 .system-prompt,
-.reasoning-effort {
+.reasoning-effort,
+.api-type,
+.auth-mode,
+.max-tokens {
     width: 100%;
     box-sizing: border-box;
 }
@@ -159,7 +162,12 @@
 }
 
 .form-group input,
-.reasoning-effort {
+.reasoning-effort,
+.api-type,
+.auth-mode,
+.max-tokens,
+.custom-header-name,
+.custom-header-value {
     background: var(--cerebr-input-bg);
     border: 1px solid var(--cerebr-card-border-color);
     min-height: 44px;
@@ -177,8 +185,19 @@
     cursor: pointer;
 }
 
+.api-type,
+.auth-mode {
+    appearance: auto;
+    cursor: pointer;
+}
+
 .form-group input:focus,
-.reasoning-effort:focus {
+.reasoning-effort:focus,
+.api-type:focus,
+.auth-mode:focus,
+.max-tokens:focus,
+.custom-header-name:focus,
+.custom-header-value:focus {
     outline: none;
     border-color: var(--cerebr-highlight-border-color);
     box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
@@ -187,6 +206,75 @@
 
 .advanced-settings {
     margin-top: 2px;
+}
+
+.custom-headers-heading,
+.custom-header-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.custom-headers-heading {
+    justify-content: space-between;
+}
+
+.custom-headers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.custom-header-name,
+.custom-header-value {
+    min-width: 0;
+    min-height: 40px;
+    padding: 8px 10px;
+    border: 1px solid var(--cerebr-card-border-color);
+    border-radius: 12px;
+    background: var(--cerebr-input-bg);
+    color: var(--cerebr-text-color);
+    font: inherit;
+}
+
+.custom-header-name {
+    flex: 0.85;
+}
+
+.custom-header-value {
+    flex: 1.15;
+}
+
+.custom-header-add,
+.custom-header-remove {
+    min-height: 32px;
+    border: 1px solid var(--cerebr-settings-section-border);
+    border-radius: 10px;
+    background: var(--cerebr-settings-section-header-bg);
+    color: var(--cerebr-text-color);
+    cursor: pointer;
+}
+
+.custom-header-add {
+    padding: 0 11px;
+}
+
+.custom-header-remove {
+    width: 34px;
+    flex: 0 0 34px;
+    font-size: 18px;
+}
+
+@media (max-width: 420px) {
+    .custom-header-row {
+        align-items: stretch;
+        flex-wrap: wrap;
+    }
+
+    .custom-header-name,
+    .custom-header-value {
+        flex: 1 1 calc(50% - 22px);
+    }
 }
 
 @media (max-width: 560px) {

@@ -3,7 +3,7 @@
   "minimum_chrome_version": "141",
   "default_locale": "en",
   "name": "__MSG_extension_name__",
-  "version": "2.5.14",
+  "version": "2.6.0",
   "description": "__MSG_extension_description__",
   "content_security_policy": {
     "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",

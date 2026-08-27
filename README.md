@@ -6,12 +6,6 @@
 <a href="https://chromewebstore.google.com/detail/cerebr/kjojanemcpiamhohkcpcddpkbnciojkj">
     <img src="https://img.shields.io/chrome-web-store/v/kjojanemcpiamhohkcpcddpkbnciojkj?color=blue&label=Chrome%20Store&logo=google-chrome&logoColor=white" alt="Chrome Web Store">
 </a>
-<a href="https://microsoftedge.microsoft.com/addons/detail/cerebr/gafelkdahhgmlccdmpnohckjfkmcdlfe">
-    <img src="https://img.shields.io/badge/dynamic/json?label=Edge%20Add-on&query=%24.version&url=https%3A%2F%2Fmicrosoftedge.microsoft.com%2Faddons%2Fgetproductdetailsbycrxid%2Fgafelkdahhgmlccdmpnohckjfkmcdlfe&logo=microsoft-edge&logoColor=white" alt="Edge Add-on">
-</a>
-<a href="https://addons.mozilla.org/en-US/firefox/addon/cerebr/">
-    <img src="https://img.shields.io/amo/v/cerebr?label=Firefox%20Add-on&logo=firefox&logoColor=white" alt="Firefox Add-on">
-</a>
   <a href="https://t.me/uni_api">
     <img src="https://img.shields.io/badge/Join Telegram Group-blue?&logo=telegram">
   </a>
@@ -23,16 +17,16 @@
 
 ![screenshot](./statics/image.png)
 
-The name "Cerebr" comes from a Latin root related to "brain" or "cerebrum". This etymology reflects our vision: to integrate powerful AI capabilities from Claude, OpenAI, and others, making Cerebr your second brain for deep reading and understanding. Cerebr is a powerful browser AI assistant extension, available for Chrome, Firefox, and Edge, focused on enhancing your work efficiency and learning experience.
+The name "Cerebr" comes from a Latin root related to "brain" or "cerebrum". Cerebr is a Chrome 141+ AI assistant focused on article reading, learning, and note export. It integrates Claude, OpenAI, and compatible custom endpoints as a distraction-free second brain.
 
 Born from a need for a clean, efficient browser AI assistant, Cerebr stands out with its minimalist design and powerful features. While other solutions often come with limitations or cluttered interfaces, Cerebr focuses on delivering a seamless, distraction-free experience for your web browsing needs.
 
 ## ✨ Core Features
 
-- 🎯 **Smart Sidebar** - Quick access via hotkey (Windows: `Alt+Z` / Mac: `Ctrl+Z`) to chat with AI anytime, anywhere
-- 🔄 **Multiple API Support** - Configure multiple APIs to flexibly switch between different AI assistants
-- 🔁 **Config Sync** - Cross-browser API configuration synchronization for seamless device switching
-- 💻 **Multi-Platform Support** - Available for Chrome, Firefox, and Edge, bringing a consistent experience across browsers.
+- 🎯 **Native Chrome Side Panel** - Open Chrome's Side Panel via hotkey (Windows: `Alt+Z` / Mac: `Ctrl+Z`)
+- 🔄 **Multiple Providers** - Configure OpenAI Chat Completions or Anthropic Messages endpoints, authentication, and custom headers
+- 🔁 **Safer Config Sync** - Non-sensitive model and endpoint settings can sync; API keys and header values remain on-device
+- 📚 **Article Learning Actions** - Send a configurable study prompt in one click and export the full conversation as Markdown
 - 📝 **Comprehensive Q&A** - Support webpage content Q&A, PDF document Q&A, image Q&A and more
 - 🎨 **Elegant Rendering** - Perfect support for Markdown text rendering and LaTeX math formula display
 - ⚡ **Real-time Response** - Stream output for instant AI replies
@@ -42,18 +36,18 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 
 ## 🛠️ Technical Features
 
-- 💾 **State Persistence** - Automatically save chat history, sidebar status, etc.
-- 🔄 **Config Sync** - Cross-device configuration sharing through browser's native sync API
+- 💾 **State Persistence** - Automatically save chat history, drafts, and reading progress
+- 🔄 **Config Sync** - Share non-sensitive configuration through Chrome sync storage
 - 🔍 **Smart Extraction** - Automatically identify and extract webpage/PDF content
 - ⌨️ **Shortcut Operations** - Support hotkey to clear chat (Windows: `Alt+X` / Mac: `Ctrl+X`), up/down keys for quick history recall
 - 🔒 **Secure & Reliable** - Support multiple API key management with local data storage
-- 🎭 **High Compatibility** - Officially supports Chrome, Firefox, and Edge, adapting to various webpage environments.
+- 🎭 **Version Requirement** - Chrome 141 or newer
 
 ## 🎮 User Guide
 
 1. 🔑 **Configure API**
    - Click the settings button
-   - Fill in API Key, Base URL and model name
+   - Choose OpenAI or Anthropic format, then fill in API Key, Base URL and model name
    - Support adding multiple API configurations
 
 2. 💬 **Start Chatting**
@@ -127,7 +121,7 @@ The deployment will be automatically handled by GitHub Actions. You can access y
 
 ### Web Version Features
 - 🌐 Access Cerebr from any browser without installation
-- 💻 Same powerful features as the Chrome extension
+- 💻 Keeps chat, configuration, themes, and Markdown export; webpage extraction remains extension-only
 - ☁️ Deploy your own instance for better control
 - 🔒 Secure and private deployment
 

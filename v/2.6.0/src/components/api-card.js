@@ -86,8 +86,15 @@ export function renderAPICards({
  * @returns {HTMLElement} 创建的卡片元素
  */
 
-import { normalizeChatCompletionsUrl } from '../utils/api-url.js';
 import { modelSupportsReasoningEffort, normalizeReasoningEffort } from '../utils/reasoning-effort.js';
+import { t } from '../utils/i18n.js';
+import {
+    API_TYPE_ANTHROPIC_MESSAGES,
+    API_TYPE_OPENAI_COMPLETIONS,
+    normalizeApiType,
+    normalizeCustomHeaders,
+    normalizeProviderUrl,
+} from '../runtime/chat/provider-adapters.js';
 
 function createAPICard({
     config,
@@ -113,6 +120,8 @@ function createAPICard({
     }
 
     const apiKeyInput = template.querySelector('.api-key');
+    const apiTypeSelect = template.querySelector('.api-type');
+    const authModeSelect = template.querySelector('.auth-mode');
     const baseUrlInput = template.querySelector('.base-url');
     const modelNameInput = template.querySelector('.model-name');
     const advancedSettingsContainer = template.querySelector('.advanced-settings');
@@ -123,6 +132,12 @@ function createAPICard({
     const reasoningEffortSelect = template.querySelector('.reasoning-effort');
     const reasoningEffortLabel = template.querySelector('.reasoning-effort-label');
     const reasoningEffortHint = template.querySelector('.reasoning-effort-hint');
+    const maxTokensInput = template.querySelector('.max-tokens');
+    const maxTokensLabel = template.querySelector('.max-tokens-label');
+    const maxTokensHint = template.querySelector('.max-tokens-hint');
+    const customHeadersList = template.querySelector('.custom-headers-list');
+    const customHeaderAddButton = template.querySelector('.custom-header-add');
+    const apiKeyVisibilityButton = template.querySelector('.api-key-visibility-btn');
     const advancedSettingsHeader = template.querySelector('.advanced-settings-header');
     const advancedSettingsContent = template.querySelector('.advanced-settings-content');
 
@@ -133,6 +148,8 @@ function createAPICard({
         systemPromptHint: `system-prompt-hint-${index}`,
         reasoningEffort: `reasoning-effort-${index}`,
         reasoningEffortHint: `reasoning-effort-hint-${index}`,
+        maxTokens: `max-tokens-${index}`,
+        maxTokensHint: `max-tokens-hint-${index}`,
     };
 
     advancedSettingsHeader.id = controlIds.advancedSettingsHeader;
@@ -148,6 +165,10 @@ function createAPICard({
     reasoningEffortLabel?.setAttribute('for', controlIds.reasoningEffort);
     reasoningEffortHint.id = controlIds.reasoningEffortHint;
     reasoningEffortSelect.setAttribute('aria-describedby', controlIds.reasoningEffortHint);
+    maxTokensInput.id = controlIds.maxTokens;
+    maxTokensLabel?.setAttribute('for', controlIds.maxTokens);
+    maxTokensHint.id = controlIds.maxTokensHint;
+    maxTokensInput.setAttribute('aria-describedby', controlIds.maxTokensHint);
 
     const stopPropagation = (e) => {
         e.stopPropagation();
@@ -175,6 +196,10 @@ function createAPICard({
             reasoningEffortSelect,
             expanded && !reasoningEffortSelect.disabled && !reasoningEffortSetting.hidden
         );
+        setControlTabIndex(maxTokensInput, expanded);
+        customHeadersList.querySelectorAll('input, button').forEach((control) => {
+            setControlTabIndex(control, expanded);
+        });
     };
 
     const setAdvancedExpanded = (expanded) => {
@@ -185,16 +210,79 @@ function createAPICard({
     };
 
     // 设置初始值
+    apiTypeSelect.value = normalizeApiType(config.apiType);
+    authModeSelect.value = config.authMode || 'auto';
     apiKeyInput.value = config.apiKey || '';
-    baseUrlInput.value = config.baseUrl || 'https://api.0-0.pro/v1/chat/completions';
+    baseUrlInput.value = config.baseUrl || 'https://api.openai.com/v1/chat/completions';
     modelNameInput.value = config.modelName || 'gpt-4o';
 
     // 设置系统提示的默认值
     systemPromptInput.value = config.advancedSettings?.systemPrompt || '';
     reasoningEffortSelect.value = normalizeReasoningEffort(config.advancedSettings?.reasoningEffort);
+    maxTokensInput.value = config.advancedSettings?.maxTokens || '';
+
+    const getHeaderValues = () => Array.from(customHeadersList.querySelectorAll('.custom-header-row'))
+        .map((row) => ({
+            name: row.querySelector('.custom-header-name')?.value || '',
+            value: row.querySelector('.custom-header-value')?.value || '',
+        }));
+
+    const createHeaderRow = (header = {}) => {
+        const row = document.createElement('div');
+        row.className = 'custom-header-row';
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.className = 'custom-header-name';
+        nameInput.autocomplete = 'off';
+        nameInput.spellcheck = false;
+        nameInput.placeholder = t('api_custom_header_name_placeholder');
+        nameInput.setAttribute('aria-label', t('api_custom_header_name_placeholder'));
+        nameInput.value = header.name || '';
+
+        const valueInput = document.createElement('input');
+        valueInput.type = 'password';
+        valueInput.className = 'custom-header-value';
+        valueInput.autocomplete = 'off';
+        valueInput.spellcheck = false;
+        valueInput.placeholder = t('api_custom_header_value_placeholder');
+        valueInput.setAttribute('aria-label', t('api_custom_header_value_placeholder'));
+        valueInput.value = header.value || '';
+
+        const removeButton = document.createElement('button');
+        removeButton.type = 'button';
+        removeButton.className = 'custom-header-remove';
+        removeButton.textContent = '×';
+        removeButton.setAttribute('aria-label', t('api_custom_header_remove_aria'));
+
+        [nameInput, valueInput].forEach((input) => {
+            input.addEventListener('click', stopPropagationOnly);
+            input.addEventListener('focus', stopPropagationOnly);
+            input.addEventListener('input', () => {
+                onChange(index, buildNextConfig(), { kind: 'apiFields' });
+            });
+            input.addEventListener('change', () => {
+                onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
+            });
+        });
+        removeButton.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            row.remove();
+            onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
+        });
+
+        row.append(nameInput, valueInput, removeButton);
+        customHeadersList.appendChild(row);
+        syncAdvancedControlInteractivity(advancedSettingsContainer.dataset.expanded === 'true');
+        return row;
+    };
+
+    normalizeCustomHeaders(config.headers).forEach(createHeaderRow);
 
     const updateReasoningEffortVisibility = () => {
-        const isSupported = modelSupportsReasoningEffort(modelNameInput.value || 'gpt-4o');
+        const isSupported = apiTypeSelect.value === API_TYPE_OPENAI_COMPLETIONS
+            && modelSupportsReasoningEffort(modelNameInput.value || 'gpt-4o');
         reasoningEffortSetting.hidden = !isSupported;
         reasoningEffortSelect.disabled = !isSupported;
         syncAdvancedControlInteractivity(advancedSettingsContainer.dataset.expanded === 'true');
@@ -211,12 +299,16 @@ function createAPICard({
             isExpanded: advancedSettingsContainer.dataset.expanded === 'true',
             systemPrompt: systemPromptInput.value,
             reasoningEffort: normalizeReasoningEffort(reasoningEffortSelect.value),
+            maxTokens: maxTokensInput.value ? Math.max(1, Math.floor(Number(maxTokensInput.value) || 0)) : null,
             ...(advancedSettingsOverride || {}),
         };
 
         return {
             ...config,
+            apiType: normalizeApiType(apiTypeSelect.value),
+            authMode: authModeSelect.value || 'auto',
             apiKey: apiKeyInput.value,
+            headers: normalizeCustomHeaders(getHeaderValues()),
             baseUrl: baseUrlInput.value,
             modelName: modelNameInput.value,
             advancedSettings: nextAdvancedSettings,
@@ -262,14 +354,71 @@ function createAPICard({
     reasoningEffortSelect.addEventListener('change', () => {
         onChange(index, buildNextConfig(), { kind: 'apiFields' });
     });
+    maxTokensInput.addEventListener('input', () => {
+        onChange(index, buildNextConfig(), { kind: 'apiFields' });
+    });
+    maxTokensInput.addEventListener('change', () => {
+        onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
+    });
+
+    customHeaderAddButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const row = createHeaderRow();
+        row.querySelector('.custom-header-name')?.focus();
+    });
+
+    apiKeyVisibilityButton.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const shouldShow = apiKeyInput.type === 'password';
+        apiKeyInput.type = shouldShow ? 'text' : 'password';
+        apiKeyVisibilityButton.setAttribute(
+            'aria-label',
+            t(shouldShow ? 'api_key_hide_aria' : 'api_key_show_aria')
+        );
+    });
+
+    apiTypeSelect.addEventListener('change', () => {
+        const previousType = normalizeApiType(config.apiType);
+        const nextType = normalizeApiType(apiTypeSelect.value);
+        const currentUrl = baseUrlInput.value.trim();
+        const previousDefault = previousType === API_TYPE_ANTHROPIC_MESSAGES
+            ? 'https://api.anthropic.com/v1/messages'
+            : 'https://api.openai.com/v1/chat/completions';
+        const legacyDefault = 'https://api.0-0.pro/v1/chat/completions';
+        if (!currentUrl || currentUrl === previousDefault || currentUrl === legacyDefault) {
+            baseUrlInput.value = nextType === API_TYPE_ANTHROPIC_MESSAGES
+                ? 'https://api.anthropic.com/v1/messages'
+                : 'https://api.openai.com/v1/chat/completions';
+        }
+        if (nextType === API_TYPE_ANTHROPIC_MESSAGES && !maxTokensInput.value) {
+            maxTokensInput.value = '8192';
+        }
+        if (nextType === API_TYPE_ANTHROPIC_MESSAGES && modelNameInput.value.trim() === 'gpt-4o') {
+            modelNameInput.value = '';
+        } else if (nextType === API_TYPE_OPENAI_COMPLETIONS && !modelNameInput.value.trim()) {
+            modelNameInput.value = 'gpt-4o';
+        }
+        updateReasoningEffortVisibility();
+        onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
+    });
+
+    authModeSelect.addEventListener('change', () => {
+        onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
+    });
 
     // 为输入框添加点击事件阻止冒泡
-    [apiKeyInput, baseUrlInput, modelNameInput, systemPromptInput].forEach(control => {
+    [apiKeyInput, baseUrlInput, modelNameInput, systemPromptInput, maxTokensInput].forEach(control => {
         control.addEventListener('click', stopPropagation);
         control.addEventListener('focus', stopPropagation);
     });
     reasoningEffortSelect.addEventListener('click', stopPropagationOnly);
     reasoningEffortSelect.addEventListener('focus', stopPropagationOnly);
+    apiTypeSelect.addEventListener('click', stopPropagationOnly);
+    apiTypeSelect.addEventListener('focus', stopPropagationOnly);
+    authModeSelect.addEventListener('click', stopPropagationOnly);
+    authModeSelect.addEventListener('focus', stopPropagationOnly);
 
     // 添加输入法状态跟踪
     let isComposing = false;
@@ -298,7 +447,7 @@ function createAPICard({
                 e.stopPropagation();
 
                 if (input === baseUrlInput) {
-                    baseUrlInput.value = normalizeChatCompletionsUrl(baseUrlInput.value) || baseUrlInput.value.trim();
+                    baseUrlInput.value = normalizeProviderUrl(baseUrlInput.value, apiTypeSelect.value) || baseUrlInput.value.trim();
                 }
 
                 const maybePromise = onChange(index, buildNextConfig(), { kind: 'apiFields', flush: true });
@@ -358,7 +507,7 @@ function createAPICard({
     [apiKeyInput, baseUrlInput, modelNameInput].forEach(input => {
         input.addEventListener('change', () => {
             if (input === baseUrlInput) {
-                baseUrlInput.value = normalizeChatCompletionsUrl(baseUrlInput.value) || baseUrlInput.value.trim();
+                baseUrlInput.value = normalizeProviderUrl(baseUrlInput.value, apiTypeSelect.value) || baseUrlInput.value.trim();
             }
             if (input === modelNameInput) {
                 updateReasoningEffortVisibility();

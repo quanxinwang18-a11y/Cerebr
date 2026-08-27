@@ -1184,6 +1184,85 @@ class CerebrSidebar {
   }
 }
 
+class NativeSidePanelBridge {
+  constructor() {
+    this.isVisible = false;
+    this.pluginLayer = null;
+    this.container = null;
+    this.iframe = null;
+    this.iframeReady = true;
+    this.readyPromise = this.initializePageOverlay();
+    void this.refreshState();
+  }
+
+  async initializePageOverlay() {
+    const container = document.createElement('cerebr-page-root');
+    this.container = container;
+    container.style.cssText = 'position:fixed;inset:0;z-index:2147483646;pointer-events:none;';
+    const shadow = container.attachShadow({ mode: 'closed' });
+    const style = document.createElement('style');
+    style.textContent = await getSidebarStylesheetText();
+    const pluginLayer = document.createElement('div');
+    pluginLayer.className = 'cerebr-plugin-layer';
+    this.pluginLayer = pluginLayer;
+    shadow.append(style, pluginLayer);
+    document.documentElement.appendChild(container);
+
+    const observer = new MutationObserver(() => {
+      if (!container.isConnected) {
+        document.documentElement.appendChild(container);
+      }
+    });
+    observer.observe(document.documentElement, { childList: true });
+    return true;
+  }
+
+  async refreshState() {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'SIDE_PANEL_STATE' });
+      this.isVisible = !!response?.open;
+    } catch {
+      this.isVisible = false;
+    }
+    return this.isVisible;
+  }
+
+  async open() {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'SIDE_PANEL_OPEN' });
+      this.isVisible = response?.open !== false;
+      return !!response?.success;
+    } catch {
+      return false;
+    }
+  }
+
+  async toggle() {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: 'SIDE_PANEL_TOGGLE' });
+      if (typeof response?.open === 'boolean') this.isVisible = response.open;
+      return !!response?.success;
+    } catch {
+      return false;
+    }
+  }
+
+  sendReadyAwareMessage(message, { openIfNeeded = false } = {}) {
+    if (!message || typeof message !== 'object') return false;
+    void chrome.runtime.sendMessage({
+      type: 'SIDE_PANEL_COMMAND',
+      payload: message,
+      openIfNeeded,
+    }).catch(() => {});
+    return true;
+  }
+
+  sendPluginBridgeCommand(command, payload = {}) {
+    if (typeof command !== 'string' || !command) return false;
+    return this.sendReadyAwareMessage(createPluginBridgeMessage('shell', command, payload));
+  }
+}
+
 let sidebar = null;
 let pagePluginRuntime = null;
 let inFlightPageContentPromise = null;
@@ -1274,6 +1353,14 @@ function handleRuntimeMessage(message, sender, sendResponse) {
         responseTime: Date.now()
       });
       return true;
+    }
+
+    if (message.type === 'SIDE_PANEL_STATE_CHANGED') {
+      if (sidebar && typeof message.open === 'boolean') {
+        sidebar.isVisible = message.open;
+      }
+      sendResponse({ success: true });
+      return false;
     }
 
     // 处理侧边栏切换命令
@@ -1478,7 +1565,7 @@ export function bootContentScript() {
   hasBooted = true;
 
   try {
-    sidebar = new CerebrSidebar();
+    sidebar = new NativeSidePanelBridge();
     void sidebar?.readyPromise?.then(() => {
       if (!sidebar?.pluginLayer) return;
       pagePluginRuntime = createPagePluginRuntime({
@@ -1489,13 +1576,12 @@ export function bootContentScript() {
     }).catch((error) => {
       console.error('初始化页面插件运行时失败:', error);
     });
-    // console.log('侧边栏实例已创建');
+    // Page extraction and plugin overlays stay in the content script; chat UI lives in Chrome Side Panel.
   } catch (error) {
     console.error('创建侧边栏实例失败:', error);
   }
 
   attachLifecycleListeners();
-  window.addEventListener('message', handleWindowPluginBridgeMessage);
   return handleRuntimeMessage;
 }
 
@@ -1870,27 +1956,12 @@ async function extractTextFromPDF(url) {
   let pdf = null;
   let worker = null;
   try {
-    // 使用已存在的 sidebar 实例
-    if (!sidebar || !sidebar.sidebar) {
-      console.error('侧边栏实例不存在');
-      return null;
-    }
-
-    // 获取iframe
-    const iframe = sidebar.sidebar.querySelector('.cerebr-sidebar__iframe');
-    if (!iframe) {
-      console.error('找不到iframe元素');
-      return null;
-    }
-
-    // 发送更新placeholder消息
     const sendPlaceholderUpdate = (message, timeout = 0) => {
-      // console.log('发送placeholder更新:', message);
-      iframe.contentWindow.postMessage({
+      sidebar?.sendReadyAwareMessage?.({
         type: 'UPDATE_PLACEHOLDER',
         placeholder: message,
         timeout: timeout
-      }, '*');
+      });
     };
 
     sendPlaceholderUpdate('正在下载PDF文件...');
@@ -2003,16 +2074,11 @@ async function extractTextFromPDF(url) {
   } catch (error) {
     console.error('PDF处理过程中出错:', error);
     console.error('错误堆栈:', error.stack);
-    if (sidebar && sidebar.sidebar) {
-      const iframe = sidebar.sidebar.querySelector('.cerebr-sidebar__iframe');
-      if (iframe) {
-        iframe.contentWindow.postMessage({
-          type: 'UPDATE_PLACEHOLDER',
-          placeholder: 'PDF处理失败',
-          timeout: 2000
-        }, '*');
-      }
-    }
+    sidebar?.sendReadyAwareMessage?.({
+      type: 'UPDATE_PLACEHOLDER',
+      placeholder: 'PDF处理失败',
+      timeout: 2000
+    });
     return null;
   } finally {
     if (requestId) {
