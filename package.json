@@ -4,6 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:pi-ai": "node scripts/build_pi_ai.mjs",
     "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "0.84.3"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }
