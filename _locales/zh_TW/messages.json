@@ -41,6 +41,7 @@
   "learning_settings_title": { "message": "文章學習" },
   "learning_settings_description": { "message": "點擊「學習文章」時，會直接傳送這段提示詞並帶上目前啟用的網頁內容。" },
   "learning_prompt_label": { "message": "固定提示詞" },
+  "learning_prompt_default": { "message": "請把目前文章作為學習材料，依照以下結構幫助我深入理解：\n1. 用一句話說明文章主題和作者的核心觀點；\n2. 提煉 5–8 個關鍵要點，並說明它們之間的邏輯關係；\n3. 解釋重要概念、術語和必要的背景知識；\n4. 指出主要論據、隱含假設、可能的爭議或限制；\n5. 提出 3 個檢驗理解的問題，並在文末附上參考答案；\n6. 最後整理一份方便複習的簡明筆記。\n\n請嚴格依據文章內容；無法從文中確認的資訊請明確標註，不要編造。" },
   "learning_prompt_placeholder": { "message": "例如：請用結構化方式講解這篇文章，並列出關鍵概念、論證鏈路和複習問題。" },
   "learning_prompt_required": { "message": "請先設定文章學習提示詞" },
   "learning_export_empty": { "message": "目前沒有可匯出的對話" },

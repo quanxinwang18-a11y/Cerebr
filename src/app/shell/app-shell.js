@@ -74,6 +74,7 @@ import {
     buildChatMarkdownFilename,
     downloadChatMarkdown,
 } from '../../utils/chat-markdown-export.js';
+import { resolveInitialLearningPrompt } from '../../runtime/learning/learning-prompt.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -1959,10 +1960,20 @@ async function onDomReady() {
 
     if (learningPromptInput) {
         const storedLearningPrompt = await syncStorageAdapter.get(LEARNING_PROMPT_STORAGE_KEY).catch(() => ({}));
-        learningPromptValue = typeof storedLearningPrompt?.[LEARNING_PROMPT_STORAGE_KEY] === 'string'
-            ? storedLearningPrompt[LEARNING_PROMPT_STORAGE_KEY]
-            : '';
+        const initialLearningPrompt = resolveInitialLearningPrompt(
+            storedLearningPrompt,
+            LEARNING_PROMPT_STORAGE_KEY,
+            t('learning_prompt_default')
+        );
+        learningPromptValue = initialLearningPrompt.value;
         learningPromptInput.value = learningPromptValue;
+        if (initialLearningPrompt.shouldPersistDefault && learningPromptValue) {
+            await syncStorageAdapter.set({
+                [LEARNING_PROMPT_STORAGE_KEY]: learningPromptValue,
+            }).catch((error) => {
+                console.error('[Cerebr] 保存默认学习提示词失败:', error);
+            });
+        }
         learningPromptInput.addEventListener('input', () => {
             learningPromptValue = learningPromptInput.value || '';
             if (learningPromptSaveTimer) clearTimeout(learningPromptSaveTimer);

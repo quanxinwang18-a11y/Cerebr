@@ -41,6 +41,7 @@
   "learning_settings_title": { "message": "Article learning" },
   "learning_settings_description": { "message": "Study article sends this prompt immediately with the enabled webpage content." },
   "learning_prompt_label": { "message": "Fixed prompt" },
+  "learning_prompt_default": { "message": "Treat the current article as study material and help me understand it deeply using this structure:\n1. State the topic and the author's central claim in one sentence.\n2. Extract 5–8 key points and explain their logical relationships.\n3. Explain important concepts, terminology, and necessary background.\n4. Identify the main evidence, hidden assumptions, possible disputes, and limitations.\n5. Write three comprehension questions and include reference answers at the end.\n6. Finish with concise revision notes.\n\nStay grounded in the article. Clearly label anything that cannot be confirmed from the text, and do not invent information." },
   "learning_prompt_placeholder": { "message": "For example: Explain this article structurally, then list its key concepts, argument chain, and review questions." },
   "learning_prompt_required": { "message": "Set the article learning prompt first" },
   "learning_export_empty": { "message": "There is no conversation to export" },

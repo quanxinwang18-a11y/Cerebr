@@ -41,6 +41,7 @@
   "learning_settings_title": { "message": "文章学习" },
   "learning_settings_description": { "message": "点击“学习文章”时，将直接发送这段提示词并携带当前启用的网页内容。" },
   "learning_prompt_label": { "message": "固定提示词" },
+  "learning_prompt_default": { "message": "请把当前文章作为学习材料，按以下结构帮助我深入理解：\n1. 用一句话说明文章主题和作者的核心观点；\n2. 提炼 5–8 个关键要点，并说明它们之间的逻辑关系；\n3. 解释重要概念、术语和必要的背景知识；\n4. 指出主要论据、隐含假设、可能的争议或局限；\n5. 给出 3 个检验理解的问题，并在文末附上参考答案；\n6. 最后整理一份便于复习的简明笔记。\n\n请严格依据文章内容；无法从文中确认的信息请明确标注，不要编造。" },
   "learning_prompt_placeholder": { "message": "例如：请用结构化方式讲解这篇文章，并列出关键概念、论证链路和复习问题。" },
   "learning_prompt_required": { "message": "请先设置文章学习提示词" },
   "learning_export_empty": { "message": "当前没有可导出的对话" },
