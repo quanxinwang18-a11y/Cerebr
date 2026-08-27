@@ -68,6 +68,11 @@ import {
     createNativeSidePanelClient,
     isNativeSidePanelPage,
 } from '../../runtime/ui/native-side-panel-client.js';
+import {
+    buildChatMarkdown,
+    buildChatMarkdownFilename,
+    downloadChatMarkdown,
+} from '../../utils/chat-markdown-export.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -76,6 +81,7 @@ let userQuestions = [];
 // 加载保存的 API 配置
 let apiConfigs = [];
 let selectedConfigIndex = 0;
+const LEARNING_PROMPT_STORAGE_KEY = 'learningPromptV1';
 
 async function onDomReady() {
     try {
@@ -126,6 +132,10 @@ async function onDomReady() {
         const pluginShellPageTitle = document.getElementById('plugin-shell-page-title');
         const pluginShellPageSubtitle = document.getElementById('plugin-shell-page-subtitle');
         const pluginShellPageBody = document.getElementById('plugin-shell-page-body');
+        const learningPromptAction = document.getElementById('learning-prompt-action');
+        const exportMarkdownAction = document.getElementById('export-markdown-action');
+        const learningPromptInput = document.getElementById('learning-prompt');
+        const learningPreferencesCard = document.getElementById('learning-preferences-card');
         const shellSlotContainers = Object.fromEntries(
             Array.from(document.querySelectorAll('[data-plugin-slot^="shell."]'))
                 .map((element) => [element.dataset.pluginSlot, element])
@@ -1911,6 +1921,47 @@ async function onDomReady() {
         });
     }
 
+    let learningPromptSaveTimer = 0;
+    let learningPromptValue = '';
+
+    const persistLearningPrompt = async () => {
+        if (!learningPromptInput) return;
+        if (learningPromptSaveTimer) {
+            clearTimeout(learningPromptSaveTimer);
+            learningPromptSaveTimer = 0;
+        }
+        learningPromptValue = learningPromptInput.value || '';
+        await syncStorageAdapter.set({
+            [LEARNING_PROMPT_STORAGE_KEY]: learningPromptValue,
+        });
+    };
+
+    if (learningPromptInput) {
+        const storedLearningPrompt = await syncStorageAdapter.get(LEARNING_PROMPT_STORAGE_KEY).catch(() => ({}));
+        learningPromptValue = typeof storedLearningPrompt?.[LEARNING_PROMPT_STORAGE_KEY] === 'string'
+            ? storedLearningPrompt[LEARNING_PROMPT_STORAGE_KEY]
+            : '';
+        learningPromptInput.value = learningPromptValue;
+        learningPromptInput.addEventListener('input', () => {
+            learningPromptValue = learningPromptInput.value || '';
+            if (learningPromptSaveTimer) clearTimeout(learningPromptSaveTimer);
+            learningPromptSaveTimer = window.setTimeout(() => {
+                learningPromptSaveTimer = 0;
+                void persistLearningPrompt().catch((error) => {
+                    console.error('[Cerebr] 保存学习提示词失败:', error);
+                });
+            }, 400);
+        });
+        learningPromptInput.addEventListener('change', () => {
+            void persistLearningPrompt().catch((error) => {
+                console.error('[Cerebr] 保存学习提示词失败:', error);
+            });
+        });
+        window.addEventListener('pagehide', () => {
+            void persistLearningPrompt().catch(() => {});
+        });
+    }
+
     const commitPendingPreferences = async () => {
         const activeElement = document.activeElement;
         if (preferencesSettings?.contains(activeElement) && typeof activeElement?.blur === 'function') {
@@ -1929,6 +1980,7 @@ async function onDomReady() {
         if (preferencesDeveloperMode) {
             await persistDeveloperModePreference(preferencesDeveloperMode.checked);
         }
+        await persistLearningPrompt();
     };
 
     if (preferencesToggle && preferencesSettings) {
@@ -1951,6 +2003,75 @@ async function onDomReady() {
             await commitPendingPreferences();
             openExternal(FEEDBACK_URL);
             preferencesSettings?.classList.remove('visible');
+        });
+    }
+
+    if (learningPromptAction) {
+        learningPromptAction.addEventListener('click', async () => {
+            const prompt = String(learningPromptInput?.value ?? learningPromptValue).trim();
+            if (!prompt) {
+                preferencesSettings?.classList.add('visible');
+                closeSettingsMenu();
+                showToast(t('learning_prompt_required'), { type: 'info', durationMs: 2400 });
+                requestAnimationFrame(() => {
+                    learningPreferencesCard?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+                    learningPromptInput?.focus?.({ preventScroll: true });
+                });
+                return;
+            }
+
+            learningPromptAction.disabled = true;
+            try {
+                await persistLearningPrompt();
+                await chatController.sendText(prompt, {
+                    preserveInput: true,
+                    source: 'learning-prompt',
+                });
+            } finally {
+                learningPromptAction.disabled = false;
+            }
+        });
+    }
+
+    if (exportMarkdownAction) {
+        exportMarkdownAction.addEventListener('click', async () => {
+            const currentChat = chatManager.getCurrentChat();
+            const exportableMessages = currentChat?.messages?.filter?.((message) => (
+                message?.role === 'user' || message?.role === 'assistant'
+            )) || [];
+            if (!currentChat || exportableMessages.length === 0) {
+                showToast(t('learning_export_empty'), { type: 'info', durationMs: 2200 });
+                return;
+            }
+
+            const currentTab = await browserAdapter.getCurrentTab().catch(() => null);
+            const exportedAt = new Date();
+            const markdown = buildChatMarkdown({
+                chat: currentChat,
+                exportedAt,
+                fallbackSource: currentTab ? {
+                    title: currentTab.title || '',
+                    url: currentTab.url || '',
+                } : null,
+                labels: {
+                    exportedAt: t('learning_export_time'),
+                    sources: t('learning_export_sources'),
+                    conversation: t('learning_export_conversation'),
+                    user: t('learning_export_user'),
+                    assistant: t('learning_export_assistant'),
+                    image: t('learning_export_image'),
+                    exportPage: t('learning_export_current_page'),
+                },
+            });
+            if (!markdown) {
+                showToast(t('learning_export_empty'), { type: 'info', durationMs: 2200 });
+                return;
+            }
+            downloadChatMarkdown(
+                markdown,
+                buildChatMarkdownFilename(currentChat, exportedAt)
+            );
+            showToast(t('learning_export_success'), { type: 'success', durationMs: 1800 });
         });
     }
 

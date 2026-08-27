@@ -147,6 +147,10 @@
                 确定
             </button>
         </div>
+        <div id="learning-actions" class="learning-actions" aria-label="文章学习操作" data-i18n-attr="aria-label:learning_actions_aria">
+            <button id="learning-prompt-action" class="learning-action-button learning-action-button--primary" type="button" data-i18n="learning_action_send">学习文章</button>
+            <button id="export-markdown-action" class="learning-action-button" type="button" data-i18n="learning_action_export">导出 Markdown</button>
+        </div>
         <div id="plugin-slash-commands" class="cerebr-plugin-slash-commands" hidden></div>
         <div id="plugin-input-actions" class="cerebr-plugin-input-actions" hidden></div>
         <div class="cerebr-plugin-slot cerebr-plugin-slot--shell-input-row-after" data-plugin-slot="shell.input.row.after"></div>
@@ -333,6 +337,14 @@
                         <input type="checkbox" id="preferences-developer-mode" aria-label="开发者模式开关" data-i18n-attr="aria-label:preferences_developer_mode_aria">
                         <span class="slider" aria-hidden="true"></span>
                     </label>
+                </div>
+            </div>
+            <div class="preferences-card" id="learning-preferences-card">
+                <div class="preferences-section">
+                    <div class="preferences-section-title" data-i18n="learning_settings_title">文章学习</div>
+                    <p class="preferences-section-description" data-i18n="learning_settings_description">点击“学习文章”时，将直接发送这段提示词并携带当前启用的网页内容。</p>
+                    <label class="preference-label" for="learning-prompt" data-i18n="learning_prompt_label">固定提示词</label>
+                    <textarea id="learning-prompt" class="learning-prompt-textarea" rows="6" data-i18n-attr="placeholder:learning_prompt_placeholder" placeholder="例如：请用结构化方式讲解这篇文章，并列出关键概念、论证链路和复习问题。"></textarea>
                 </div>
             </div>
             <div class="preferences-card">

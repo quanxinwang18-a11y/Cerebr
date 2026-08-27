@@ -1,0 +1,64 @@
+.learning-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 0 10px 8px;
+    box-sizing: border-box;
+}
+
+.learning-action-button {
+    min-height: 32px;
+    padding: 0 12px;
+    border: 1px solid var(--cerebr-surface-border);
+    border-radius: 999px;
+    background: var(--cerebr-surface-bg);
+    color: var(--cerebr-text-color);
+    font: inherit;
+    font-size: var(--cerebr-fs-13);
+    cursor: pointer;
+    transition: transform 0.16s ease, border-color 0.16s ease, background-color 0.16s ease;
+}
+
+.learning-action-button--primary {
+    border-color: var(--cerebr-highlight-border-color);
+    background: var(--cerebr-settings-accent-bg);
+    color: var(--cerebr-settings-accent-text);
+}
+
+.learning-action-button:hover {
+    transform: translateY(-1px);
+    border-color: var(--cerebr-highlight-border-color);
+}
+
+.learning-action-button:active {
+    transform: translateY(0);
+}
+
+.learning-prompt-textarea {
+    width: 100%;
+    min-height: 132px;
+    box-sizing: border-box;
+    margin-top: 8px;
+    padding: 11px 12px;
+    border: 1px solid var(--cerebr-input-border-color);
+    border-radius: 14px;
+    background: var(--cerebr-input-bg);
+    color: var(--cerebr-text-color);
+    font: inherit;
+    font-size: var(--cerebr-fs-14);
+    line-height: 1.5;
+    resize: vertical;
+}
+
+.learning-prompt-textarea:focus {
+    outline: none;
+    border-color: var(--cerebr-highlight-border-color);
+    box-shadow: 0 0 0 1px var(--cerebr-highlight-border-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .learning-action-button {
+        transition: none;
+    }
+}
