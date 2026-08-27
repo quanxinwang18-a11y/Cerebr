@@ -14,12 +14,14 @@ import {
     providerModelKey,
 } from '../runtime/models/provider-config.js';
 import { migrateLegacyApiConfigs } from '../runtime/models/provider-migration.js';
+import { parsePiConfiguration } from '../runtime/models/pi-config-import.js';
 import { createLifecycleFetch, toPiContext } from '../runtime/chat/pi-chat-adapter.js';
 
 export const PROVIDER_CONFIGS_STORAGE_KEY = 'providerConfigsV1';
 export const SELECTED_MODEL_STORAGE_KEY = 'selectedModelV1';
 export const MODEL_SETTINGS_STORAGE_KEY = 'modelSettingsV1';
 export const MODEL_PROMPT_INDEX_STORAGE_KEY = 'providerModelPromptIndexV1';
+export const PROVIDER_AUTO_DISCOVERY_STORAGE_KEY = 'providerAutoDiscoveryV1';
 
 const MODEL_PROMPT_PREFIX = 'providerModelPromptV1_';
 const MODEL_PROMPT_LOCAL_ONLY_PREFIX = 'providerModelPromptLocalOnlyV1_';
@@ -97,6 +99,7 @@ function modelSourceLabel(source, tr) {
         'pi-builtin': tr('provider_source_pi_builtin', 'Pi 内置'),
         'pi-catalog': tr('provider_source_pi_catalog', 'Pi 目录'),
         provider: tr('provider_source_provider', '服务商发现'),
+        'provider-adapted': tr('provider_source_adapted', '服务商发现 + Pi 参数'),
         user: tr('provider_source_user', '用户添加'),
         'user-override': tr('provider_source_override', '用户覆盖'),
         'stale-selected': tr('provider_source_stale', '目录中已不可见'),
@@ -161,6 +164,7 @@ export function createProviderSettingsController({
         promptIndex: [],
         statuses: new Map(),
         persistTimer: null,
+        autoRefreshTimers: new Map(),
     };
 
     const defaultProvider = () => normalizeProviderConfig({
@@ -169,7 +173,7 @@ export function createProviderSettingsController({
         api: 'openai-completions',
         baseUrl: 'https://api.openai.com/v1',
         authMode: 'auto',
-        modelSource: 'manual',
+        modelSource: isExtension ? 'provider' : 'manual',
         defaultModelId: 'gpt-4o',
         userModels: [{ id: 'gpt-4o', name: 'GPT-4o', input: ['text', 'image'] }],
     });
@@ -230,6 +234,7 @@ export function createProviderSettingsController({
             [SELECTED_MODEL_STORAGE_KEY]: clone(state.selectedModel),
             [MODEL_SETTINGS_STORAGE_KEY]: clone(state.modelSettings),
             [MODEL_PROMPT_INDEX_STORAGE_KEY]: promptIndex,
+            [PROVIDER_AUTO_DISCOVERY_STORAGE_KEY]: true,
         };
         await configStorage.set(configPayload);
         const localPrompts = {};
@@ -288,12 +293,15 @@ export function createProviderSettingsController({
             SELECTED_MODEL_STORAGE_KEY,
             MODEL_SETTINGS_STORAGE_KEY,
             MODEL_PROMPT_INDEX_STORAGE_KEY,
+            PROVIDER_AUTO_DISCOVERY_STORAGE_KEY,
         ]).catch(() => ({}));
         let providers = stored?.[PROVIDER_CONFIGS_STORAGE_KEY];
         let migration = null;
         if (!Array.isArray(providers)) migration = await migrateLegacyIfNeeded();
         providers = migration?.providerConfigs || providers;
         if (!Array.isArray(providers) || providers.length === 0) providers = [defaultProvider()];
+        const shouldUpgradeAutoDiscovery = isExtension
+            && stored?.[PROVIDER_AUTO_DISCOVERY_STORAGE_KEY] !== true;
         state.providers = providers.map((provider) => {
             if (!isExtension && provider?.presetId) {
                 const preset = PROVIDER_PRESETS[provider.presetId];
@@ -308,7 +316,11 @@ export function createProviderSettingsController({
             }
             return normalizeProviderConfig({
                 ...provider,
-                ...(!isExtension ? { modelSource: 'manual' } : {}),
+                ...(!isExtension
+                    ? { modelSource: 'manual' }
+                    : (shouldUpgradeAutoDiscovery && provider?.presetId == null && provider?.modelSource === 'manual'
+                        ? { modelSource: 'provider' }
+                        : {})),
             });
         });
         state.selectedModel = migration?.selectedModel || stored?.[SELECTED_MODEL_STORAGE_KEY] || null;
@@ -322,12 +334,18 @@ export function createProviderSettingsController({
             ...(migration?.systemPrompts || {}),
         };
         await configureRuntime();
-        if (migration) await persistNow();
+        if (migration || shouldUpgradeAutoDiscovery) await persistNow();
         render();
         if (isExtension) {
             void Promise.all(state.providers
                 .filter((provider) => provider.modelSource !== 'manual')
-                .map((provider) => runtime.refreshProvider(provider.id, { force: false }).catch(() => null)))
+                .map(async (provider) => {
+                    const credential = await credentialStore.read(provider.id).catch(() => undefined);
+                    const hasCredential = !!text(credential?.key)
+                        || (credential?.headers || []).some((header) => /^(?:authorization|x-api-key|x-goog-api-key)$/iu.test(text(header?.name)) && text(header?.value));
+                    if (!provider.presetId && provider.authMode !== 'none' && !hasCredential) return null;
+                    return runtime.refreshProvider(provider.id, { force: false }).catch(() => null);
+                }))
                 .then(async () => {
                     ensureSelected();
                     await emitSelection();
@@ -352,7 +370,25 @@ export function createProviderSettingsController({
         });
     };
 
-    const updateProvider = async (provider, patch) => {
+    const queueAutoRefresh = (providerId) => {
+        if (!isExtension) return;
+        const existing = state.autoRefreshTimers.get(providerId);
+        if (existing) clearTimeout(existing);
+        const timer = setTimeout(() => {
+            state.autoRefreshTimers.delete(providerId);
+            const provider = state.providers.find((item) => item.id === providerId);
+            if (!provider || provider.modelSource === 'manual' || provider.modelSource === 'pi-catalog') return;
+            void credentialStore.read(provider.id).catch(() => undefined).then((credential) => {
+                const hasCredential = !!text(credential?.key)
+                    || (credential?.headers || []).some((header) => /^(?:authorization|x-api-key|x-goog-api-key)$/iu.test(text(header?.name)) && text(header?.value));
+                if (!provider.presetId && provider.authMode !== 'none' && !hasCredential) return;
+                return refreshProvider(provider, { automatic: true });
+            });
+        }, 800);
+        state.autoRefreshTimers.set(providerId, timer);
+    };
+
+    const updateProvider = async (provider, patch, { autoDiscover = false } = {}) => {
         Object.assign(provider, patch);
         const normalized = normalizeProviderConfig(provider);
         const index = state.providers.findIndex((item) => item.id === provider.id);
@@ -360,6 +396,7 @@ export function createProviderSettingsController({
         await configureRuntime();
         queuePersist();
         render();
+        if (autoDiscover) queueAutoRefresh(provider.id);
     };
 
     const selectModel = async (providerId, modelId) => {
@@ -377,15 +414,22 @@ export function createProviderSettingsController({
         render();
     };
 
-    const refreshProvider = async (provider) => {
+    const refreshProvider = async (provider, { automatic = false } = {}) => {
         if (!isExtension) return;
-        setStatus(provider.id, { kind: 'busy', message: tr('provider_refreshing', '正在刷新模型…') });
+        setStatus(provider.id, {
+            kind: 'busy',
+            message: automatic
+                ? tr('provider_auto_discovering', '正在自动获取模型与参数…')
+                : tr('provider_refreshing', '正在刷新模型…'),
+        });
         try {
             const result = await runtime.refreshProvider(provider.id, { force: true });
             setStatus(provider.id, {
                 kind: Object.keys(result?.errors || {}).length ? 'warning' : 'success',
                 message: Object.keys(result?.errors || {}).length
-                    ? Object.values(result.errors).join('; ')
+                    ? `${provider.userModels?.length
+                        ? tr('provider_discovery_fallback', '自动发现失败，已保留已配置模型')
+                        : tr('provider_discovery_failed', '自动发现模型失败')}：${Object.values(result.errors).join('; ')}`
                     : tr('provider_refresh_success', `已刷新 ${result?.models?.length || 0} 个模型`),
             });
             ensureSelected();
@@ -445,6 +489,35 @@ export function createProviderSettingsController({
         return `${base}/chat/completions`;
     };
 
+    const importPiFiles = async (files) => {
+        const parsed = [];
+        for (const file of Array.from(files || [])) {
+            const value = JSON.parse(await file.text());
+            parsed.push(value);
+        }
+        const modelsConfig = parsed.find((value) => value?.providers && typeof value.providers === 'object');
+        const settingsConfig = parsed.find((value) => value !== modelsConfig && (value?.defaultProvider || value?.defaultModel)) || {};
+        const imported = parsePiConfiguration({
+            modelsConfig,
+            settingsConfig,
+            existingProviderIds: state.providers.map((provider) => provider.id),
+        });
+        if (!imported.providers.length) throw new Error('No Pi providers found');
+        state.providers.push(...imported.providers);
+        for (const [providerId, credential] of Object.entries(imported.credentials)) {
+            await credentialStore.modify(providerId, () => credential);
+        }
+        state.selectedModel = imported.selectedModel || state.selectedModel;
+        await configureRuntime();
+        await persistNow();
+        render();
+        imported.providers.forEach((provider) => queueAutoRefresh(provider.id));
+        showToast?.(tr('provider_pi_import_success', `已导入 ${imported.providers.length} 个 Pi Provider`), {
+            type: 'success',
+            durationMs: 2200,
+        });
+    };
+
     const renderHeader = (container) => {
         const actions = element('div', 'provider-add-row');
         const presetSelect = document.createElement('select');
@@ -475,8 +548,28 @@ export function createProviderSettingsController({
             await configureRuntime();
             queuePersist();
             render();
+            queueAutoRefresh(provider.id);
         });
-        actions.append(presetSelect, addButton);
+        const importInput = document.createElement('input');
+        importInput.type = 'file';
+        importInput.accept = '.json,application/json';
+        importInput.multiple = true;
+        importInput.hidden = true;
+        const importButton = element('button', 'provider-secondary-button', tr('provider_import_pi', '导入 Pi 配置'));
+        importButton.type = 'button';
+        importButton.addEventListener('click', () => {
+            importInput.value = '';
+            importInput.click();
+        });
+        importInput.addEventListener('change', () => {
+            void importPiFiles(importInput.files).catch((error) => {
+                showToast?.(tr('provider_pi_import_failed', `Pi 配置导入失败：${error?.message || error}`), {
+                    type: 'error',
+                    durationMs: 3000,
+                });
+            });
+        });
+        actions.append(presetSelect, addButton, importButton, importInput);
         container.append(actions);
     };
 
@@ -489,6 +582,7 @@ export function createProviderSettingsController({
                 headers: clone(headers),
             }));
             await emitSelection();
+            queueAutoRefresh(provider.id);
         };
         headers.forEach((header, index) => {
             const row = element('div', 'provider-header-row');
@@ -651,11 +745,11 @@ export function createProviderSettingsController({
         source.disabled = !isExtension;
         const listPath = inputControl({ value: provider.modelListPath });
         name.addEventListener('change', () => void updateProvider(provider, { name: name.value }));
-        api.addEventListener('change', () => void updateProvider(provider, { api: api.value, modelListPath: defaultModelListPath(api.value) }));
-        baseUrl.addEventListener('change', () => void updateProvider(provider, { baseUrl: baseUrl.value }));
-        auth.addEventListener('change', () => void updateProvider(provider, { authMode: auth.value }));
-        source.addEventListener('change', () => void updateProvider(provider, { modelSource: source.value }));
-        listPath.addEventListener('change', () => void updateProvider(provider, { modelListPath: listPath.value }));
+        api.addEventListener('change', () => void updateProvider(provider, { api: api.value, modelListPath: defaultModelListPath(api.value) }, { autoDiscover: true }));
+        baseUrl.addEventListener('change', () => void updateProvider(provider, { baseUrl: baseUrl.value }, { autoDiscover: true }));
+        auth.addEventListener('change', () => void updateProvider(provider, { authMode: auth.value }, { autoDiscover: true }));
+        source.addEventListener('change', () => void updateProvider(provider, { modelSource: source.value }, { autoDiscover: true }));
+        listPath.addEventListener('change', () => void updateProvider(provider, { modelListPath: listPath.value }, { autoDiscover: true }));
         form.append(
             field(tr('provider_name', 'Provider 名称'), name),
             field(tr('api_type_label', 'API 格式'), api),
@@ -668,6 +762,7 @@ export function createProviderSettingsController({
         key.addEventListener('change', async () => {
             await credentialStore.modify(provider.id, (current = { type: 'api_key', headers: [] }) => ({ ...current, key: key.value }));
             await emitSelection();
+            queueAutoRefresh(provider.id);
         });
         form.append(field('API Key', key, credential.key ? tr('provider_credentials_local', '凭据仅保存在本机') : tr('provider_credentials_required', '此设备需要填写凭据')));
         card.append(form);

@@ -50,6 +50,12 @@ const PRESET_DEFINITIONS = [
     ['cerebras', 'Cerebras', API_OPENAI_COMPLETIONS, 'https://api.cerebras.ai/v1', 'bearer', CEREBRAS_MODELS],
 ];
 
+const GLOBAL_PI_MODELS = PRESET_DEFINITIONS.flatMap(([, , , , , models]) => Object.values(models));
+const GLOBAL_PI_MODELS_BY_ID = new Map();
+GLOBAL_PI_MODELS.forEach((model) => {
+    if (model?.id && !GLOBAL_PI_MODELS_BY_ID.has(model.id)) GLOBAL_PI_MODELS_BY_ID.set(model.id, model);
+});
+
 export const PROVIDER_PRESETS = Object.freeze(Object.fromEntries(
     PRESET_DEFINITIONS.map(([id, name, api, baseUrl, authMode, models]) => [id, Object.freeze({
         id,
@@ -104,6 +110,21 @@ export function defaultModelListPath(api) {
     }
 }
 
+export function inferModelCapabilities(modelId) {
+    const id = stringValue(modelId).toLowerCase();
+    const reasoning = /(?:^|[-_/.])(reason(?:ing)?|thinking|r1|o1|o3|o4)(?:$|[-_/.])/u.test(id)
+        || /(?:deepseek-v4|glm-5|minimax-m2\.5|minimax-m3)/u.test(id);
+    const image = /(?:vision|multimodal|image|[-_.]vl(?:[-_.]|$)|gemini|gpt-4o|gpt-5)/u.test(id);
+    return {
+        reasoning,
+        input: image ? ['text', 'image'] : ['text'],
+    };
+}
+
+export function getGlobalPiModelMatch(modelId) {
+    return GLOBAL_PI_MODELS_BY_ID.get(stringValue(modelId));
+}
+
 export function normalizeModelDefinition(model, {
     providerId,
     api,
@@ -116,6 +137,7 @@ export function normalizeModelDefinition(model, {
     const normalizedApi = normalizeProviderApi(model?.api || api);
     const normalizedProvider = stringValue(providerId, model?.provider);
     const normalizedBaseUrl = normalizePiBaseUrl(baseUrl || model?.baseUrl, normalizedApi);
+    const inferredCapabilities = inferModelCapabilities(id);
     return {
         ...model,
         id,
@@ -123,10 +145,10 @@ export function normalizeModelDefinition(model, {
         api: normalizedApi,
         provider: normalizedProvider,
         baseUrl: normalizedBaseUrl,
-        reasoning: !!model?.reasoning,
+        reasoning: typeof model?.reasoning === 'boolean' ? model.reasoning : inferredCapabilities.reasoning,
         input: Array.isArray(model?.input) && model.input.length
             ? Array.from(new Set(model.input.filter((item) => item === 'text' || item === 'image')))
-            : ['text'],
+            : inferredCapabilities.input,
         cost: {
             input: Number(model?.cost?.input) || 0,
             output: Number(model?.cost?.output) || 0,
@@ -138,6 +160,7 @@ export function normalizeModelDefinition(model, {
         maxTokens: positiveInt(model?.maxTokens, 16384),
         source: stringValue(model?.source, source),
         inferred: model?.inferred === true || inferred,
+        inferredFields: Array.from(new Set(Array.isArray(model?.inferredFields) ? model.inferredFields : [])),
     };
 }
 
@@ -187,7 +210,24 @@ function mergeById(base, overlay) {
     const merged = new Map(base.map((model) => [model.id, model]));
     overlay.forEach((model) => {
         const current = merged.get(model.id);
-        merged.set(model.id, current ? { ...current, ...model } : model);
+        if (!current) {
+            merged.set(model.id, model);
+            return;
+        }
+        const next = { ...current, ...model };
+        const inferredFields = new Set(model.inferredFields || []);
+        for (const field of inferredFields) {
+            if (current[field] !== undefined) next[field] = current[field];
+        }
+        if (inferredFields.size > 0 && current.source === 'pi-builtin-match') {
+            next.source = 'provider-adapted';
+            next.inferred = false;
+        }
+        if (current.compat || model.compat) next.compat = { ...(current.compat || {}), ...(model.compat || {}) };
+        if (current.samplingParams || model.samplingParams) {
+            next.samplingParams = { ...(current.samplingParams || {}), ...(model.samplingParams || {}) };
+        }
+        merged.set(model.id, next);
     });
     return Array.from(merged.values());
 }
@@ -210,7 +250,18 @@ export function mergeProviderModels(providerConfig, {
 
     let models = getPresetModels(config);
     models = mergeById(models, normalizeLayer(piModels, 'pi-catalog'));
-    models = mergeById(models, normalizeLayer(providerModels, 'provider', true));
+    const discovered = normalizeLayer(providerModels, 'provider', true);
+    const globalMatches = discovered.map((model) => {
+        const match = getGlobalPiModelMatch(model.id);
+        return match ? normalizeModelDefinition(match, {
+            providerId: config.id,
+            api: model.api || config.api,
+            baseUrl: config.baseUrl,
+            source: 'pi-builtin-match',
+        }) : null;
+    }).filter(Boolean);
+    models = mergeById(models, globalMatches);
+    models = mergeById(models, discovered);
     models = mergeById(models, normalizeLayer(config.userModels, 'user'));
     models = models.map((model) => {
         const override = config.modelOverrides[model.id];
