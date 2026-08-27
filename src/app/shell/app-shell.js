@@ -11,6 +11,7 @@ import { hideContextMenu } from '../../components/context-menu.js';
 import { initChatContainer } from '../../components/chat-container.js';
 import { showImagePreview, hideImagePreview, showToast } from '../../utils/ui.js';
 import { renderAPICards, createCardCallbacks, selectCard } from '../../components/api-card.js';
+import { createProviderSettingsController } from '../../components/provider-settings-controller.js';
 import { initPluginSettings } from '../../components/plugin-settings.js';
 import { storageAdapter, syncStorageAdapter, browserAdapter, isExtensionEnvironment } from '../../utils/storage-adapter.js';
 import {
@@ -223,11 +224,17 @@ async function onDomReady() {
         let thinkingPlaceholderTimerId = 0;
 
         const getSelectedModelName = () => {
-            const configuredModelName = apiConfigs[selectedConfigIndex]?.modelName;
+            const selectedConfig = apiConfigs[selectedConfigIndex];
+            const configuredModelName = selectedConfig?.modelDisplayName || selectedConfig?.modelName;
             const normalizedModelName = typeof configuredModelName === 'string'
                 ? configuredModelName.trim()
                 : '';
-            return normalizedModelName || 'gpt-4o';
+            const providerName = typeof selectedConfig?.providerName === 'string'
+                ? selectedConfig.providerName.trim()
+                : '';
+            return providerName && normalizedModelName
+                ? `${providerName} / ${normalizedModelName}`
+                : (normalizedModelName || 'gpt-4o');
         };
 
         const getTemporaryPlaceholderOverrideUntil = () => Number(messageInput?.__cerebrPlaceholderOverrideUntil) || 0;
@@ -1692,6 +1699,20 @@ async function onDomReady() {
     const apiSettingsToggle = document.getElementById('api-settings-toggle');
     const backButton = apiSettings?.querySelector('.back-button') || null;
     const apiCards = apiSettings?.querySelector('.api-cards') || null;
+    const providerSettingsRoot = apiSettings?.querySelector('#provider-settings-root') || null;
+    const providerSettingsController = createProviderSettingsController({
+        root: providerSettingsRoot,
+        storage: storageAdapter,
+        syncStorage: syncStorageAdapter,
+        isExtension: isExtensionEnvironment,
+        t,
+        showToast,
+        onSelectionChanged: (config) => {
+            apiConfigs.splice(0, apiConfigs.length, ...(config ? [config] : []));
+            selectedConfigIndex = 0;
+            refreshManagedPlaceholder();
+        },
+    });
 
     // 偏好设置页面
     const preferencesBackButton = preferencesSettings?.querySelector('.back-button');
@@ -2283,6 +2304,10 @@ async function onDomReady() {
 
     // 创建渲染API卡片的辅助函数
     const renderAPICardsWithCallbacks = () => {
+        if (providerSettingsController) {
+            void providerSettingsController.render();
+            return;
+        }
         renderAPICards({
             apiConfigs,
             apiCardsContainer: apiCards,
@@ -2325,6 +2350,12 @@ async function onDomReady() {
 
     // 从存储加载配置
     async function loadAPIConfigs() {
+        if (providerSettingsController) {
+            const config = await providerSettingsController.reload();
+            apiConfigs.splice(0, apiConfigs.length, ...(config ? [config] : []));
+            selectedConfigIndex = 0;
+            return;
+        }
         try {
             const [result, credentialsResult] = await Promise.all([
                 readApiConfigMeta(),
@@ -2492,6 +2523,10 @@ async function onDomReady() {
 
     // 保存配置到存储
     async function saveAPIConfigsNow() {
+        if (providerSettingsController) {
+            await providerSettingsController.flush();
+            return;
+        }
         try {
             const nextConfigs = apiConfigs.map(normalizeApiConfig);
             apiConfigs.splice(0, apiConfigs.length, ...nextConfigs);
