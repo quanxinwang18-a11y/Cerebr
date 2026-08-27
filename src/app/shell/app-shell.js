@@ -64,6 +64,10 @@ import {
     syncDefaultChatForLocale
 } from '../../utils/default-chat.js';
 import { createShellPluginRuntime } from '../../plugin/shell/shell-plugin-runtime.js';
+import {
+    createNativeSidePanelClient,
+    isNativeSidePanelPage,
+} from '../../runtime/ui/native-side-panel-client.js';
 
 // 存储用户的问题历史
 let userQuestions = [];
@@ -1050,6 +1054,11 @@ async function onDomReady() {
             uiConfig
         });
     });
+    if (isExtensionEnvironment && isNativeSidePanelPage()) {
+        const nativeSidePanelClient = createNativeSidePanelClient();
+        await nativeSidePanelClient.connect();
+        window.addEventListener('pagehide', () => nativeSidePanelClient.stop(), { once: true });
+    }
     notifyParentIframeReady();
 
     let settingsMenuOpenMode = null;
@@ -2305,7 +2314,7 @@ async function onDomReady() {
 
     // 监听标签页切换
     browserAdapter.onTabActivated(async (activeInfo) => {
-        // background 会广播给所有 sidebar 实例：只在当前可见的实例里处理，避免跨 tab 状态串扰
+        // Native Side Panel is shared by the window, so it follows the active tab explicitly.
         if (document.hidden) return;
         try {
             if (activeInfo?.tabId || activeInfo?.windowId) {
@@ -2317,15 +2326,31 @@ async function onDomReady() {
         } catch {
             // ignore
         }
+        await Promise.all([
+            draftController.saveDraftNow().catch(() => {}),
+            readingProgressManager.saveNow().catch(() => {}),
+            chatManager.flushNow().catch(() => {}),
+        ]);
+
         // 同步API配置
         await loadAPIConfigs();
         renderAPICardsWithCallbacks();
 
-        // 同步对话数据（对话列表在打开时再渲染，避免后台渲染造成额外布局开销）
+        const previousChatId = chatManager.getCurrentChat()?.id || null;
         await chatManager.initialize();
+        const currentChat = chatManager.getCurrentChat();
+        if (currentChat) {
+            if (previousChatId !== currentChat.id) {
+                document.dispatchEvent(new CustomEvent('cerebr:chatSwitched', {
+                    detail: { chatId: currentChat.id },
+                }));
+            }
+            await loadChatContent(currentChat, chatContainer);
+            chatContainerManager.initializeUserQuestions();
+            await readingProgressManager.restore(currentChat.id).catch(() => {});
+        }
 
         // 如果当前对话为空，则重置网页内容开关
-        const currentChat = chatManager.getCurrentChat();
         if (currentChat && (currentChat.messages.length === 0 || isDefaultChatSeedOnly(currentChat))) {
             const currentTab = await browserAdapter.getCurrentTab();
             if (currentTab?.id) {

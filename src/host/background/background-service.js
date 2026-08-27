@@ -1,6 +1,10 @@
 import { createBackgroundPluginRuntime } from '../../plugin/background/background-plugin-runtime.js';
 import { isPluginBridgeMessage } from '../../plugin/bridge/plugin-bridge.js';
 import { createPageUserScriptService } from '../../plugin/page/page-user-script-service.js';
+import {
+  NATIVE_SIDE_PANEL_PORT_NAME,
+  createNativeSidePanelService,
+} from './native-side-panel-service.js';
 
 // 确保 Service Worker 立即激活
 self.addEventListener('install', (event) => {
@@ -31,6 +35,7 @@ self.addEventListener('activate', (event) => {
 const pdfJsInjectedTabs = new Set();
 const backgroundPluginRuntime = createBackgroundPluginRuntime();
 const pageUserScriptService = createPageUserScriptService();
+const nativeSidePanelService = createNativeSidePanelService();
 const PAGE_USER_SCRIPT_PORT_PREFIX = 'cerebr.page.user-script:';
 const PAGE_USER_SCRIPT_MESSAGE_TYPES = new Set([
   'PAGE_USER_SCRIPT_PLUGIN_STATUS_QUERY',
@@ -58,9 +63,12 @@ if (chrome.runtime?.onUserScriptConnect?.addListener) {
   chrome.runtime.onUserScriptConnect.addListener((port) => {
     attachPageUserScriptPort(port);
   });
-} else if (chrome.runtime?.onConnect?.addListener) {
+}
+if (chrome.runtime?.onConnect?.addListener) {
   chrome.runtime.onConnect.addListener((port) => {
-    if (String(port?.name || '').startsWith(PAGE_USER_SCRIPT_PORT_PREFIX)) {
+    if (port?.name === NATIVE_SIDE_PANEL_PORT_NAME) {
+      nativeSidePanelService.attachPort(port);
+    } else if (String(port?.name || '').startsWith(PAGE_USER_SCRIPT_PORT_PREFIX)) {
       attachPageUserScriptPort(port);
     }
   });
@@ -169,18 +177,6 @@ async function ensurePdfJsInjected(tabId) {
   }
 }
 
-function checkCustomShortcut(callback) {
-  chrome.commands.getAll((commands) => {
-      const toggleCommand = commands.find(command => command.name === '_execute_action' || command.name === '_execute_browser_action');
-      if (toggleCommand && toggleCommand.shortcut) {
-          console.log('当前设置的快捷键:', toggleCommand.shortcut);
-          // 直接获取最后一个字符并转换为小写
-          const lastLetter = toggleCommand.shortcut.charAt(toggleCommand.shortcut.length - 1).toLowerCase();
-          callback(lastLetter);
-      }
-  });
-}
-
 function rememberPageDiagnosticsTabId(tabId) {
   if (!Number.isFinite(Number(tabId))) {
     return;
@@ -243,30 +239,6 @@ async function reinjectContentScript(tabId) {
   } catch (error) {
     console.error('重新注入 content script 失败:', error);
     return false;
-  }
-}
-
-// 处理标签页连接和消息发送的通用函数
-async function handleTabCommand(commandType) {
-  try {
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab) {
-      console.log('没有找到活动标签页');
-      return;
-    }
-
-    // 检查标签页是否已连接
-    const isConnected = await isTabConnected(tab.id);
-    if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
-      return;
-    }
-
-    if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: commandType });
-    }
-  } catch (error) {
-    console.error(`处理${commandType}命令失败:`, error);
   }
 }
 
@@ -373,17 +345,10 @@ async function getPluginRuntimeDiagnosticsSnapshot(tabId = null) {
 
 // 监听扩展图标点击
 chrome.action.onClicked.addListener(async (tab) => {
-  console.log('扩展图标被点击');
   try {
-    // 检查标签页是否已连接
-    const isConnected = await isTabConnected(tab.id);
-    if (!isConnected && await reinjectContentScript(tab.id)) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
-    } else if (isConnected) {
-      await chrome.tabs.sendMessage(tab.id, { type: 'TOGGLE_SIDEBAR_onClicked' });
-    }
+    await nativeSidePanelService.toggle({ windowId: tab?.windowId, tabId: tab?.id });
   } catch (error) {
-    console.error('处理切换失败:', error);
+    console.error('切换原生侧边栏失败:', error);
   } finally {
     void backgroundPluginRuntime.handleActionClicked(tab || null);
   }
@@ -395,9 +360,9 @@ chrome.commands.onCommand.addListener(async (command) => {
 
   try {
     if (command === 'toggle_sidebar') {
-      await handleTabCommand('TOGGLE_SIDEBAR_toggle_sidebar');
+      await nativeSidePanelService.toggle();
     } else if (command === 'new_chat') {
-      await handleTabCommand('NEW_CHAT');
+      await nativeSidePanelService.sendCommand({ type: 'NEW_CHAT' }, { openIfNeeded: true });
     }
   } finally {
     void backgroundPluginRuntime.handleCommand(command);
@@ -408,6 +373,18 @@ chrome.commands.onCommand.addListener(async (command) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // console.log('收到消息:', message, '来自:', sender.tab?.id);
   rememberPageDiagnosticsTabId(sender?.tab?.id);
+
+  if (String(message?.type || '').startsWith('SIDE_PANEL_')) {
+    (async () => {
+      try {
+        const result = await nativeSidePanelService.handleRuntimeMessage(message, sender);
+        sendResponse(result || { success: false, error: 'Unhandled side panel message' });
+      } catch (error) {
+        sendResponse({ success: false, error: error?.message || String(error) });
+      }
+    })();
+    return true;
+  }
 
   if (PAGE_USER_SCRIPT_MESSAGE_TYPES.has(message?.type)) {
     (async () => {
