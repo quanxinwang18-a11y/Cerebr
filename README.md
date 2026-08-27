@@ -144,6 +144,11 @@ https://github.com/tw93/Pake
 
 ## 🚀 Latest Updates
 
+### v2.6.1
+
+- 🐛 Fixed the extension action icon not opening Chrome's native Side Panel
+- ✅ Delegated toolbar toggling to Chrome's native `openPanelOnActionClick` behavior
+
 ### v2.6.0
 
 - 🧩 Added OpenAI Chat Completions and Anthropic Messages providers

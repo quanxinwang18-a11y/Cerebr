@@ -144,6 +144,11 @@ https://github.com/tw93/Pake
 
 ## 🚀 最新更新
 
+### v2.6.1
+
+- 🐛 修复点击扩展图标后 Chrome 原生 Side Panel 没有打开的问题
+- ✅ 工具栏图标开关改由 Chrome 原生 `openPanelOnActionClick` 行为处理
+
 ### v2.6.0
 
 - 🧩 新增 OpenAI Chat Completions 与 Anthropic Messages 双 Provider
