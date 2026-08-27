@@ -330,6 +330,8 @@
 
   "provider_custom_name": { "message": "自訂 Provider" },
   "provider_add": { "message": "新增 Provider" },
+  "provider_preset_select": { "message": "選擇 Provider 預設" },
+  "provider_select_model": { "message": "選擇模型" },
   "provider_name": { "message": "Provider 名稱" },
   "provider_model_source": { "message": "模型來源" },
   "provider_model_list_path": { "message": "模型清單路徑" },
@@ -340,6 +342,8 @@
   "provider_header_value": { "message": "值" },
   "provider_models": { "message": "模型" },
   "provider_search_models": { "message": "搜尋模型" },
+  "provider_showing_models": { "message": "顯示" },
+  "provider_models_count": { "message": "個模型" },
   "provider_model_id": { "message": "模型 ID" },
   "provider_add_model": { "message": "新增模型" },
   "provider_model_display_name": { "message": "顯示名稱" },

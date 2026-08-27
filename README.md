@@ -24,7 +24,8 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 ## ✨ Core Features
 
 - 🎯 **Native Chrome Side Panel** - Open Chrome's Side Panel via hotkey (Windows: `Alt+Z` / Mac: `Ctrl+Z`)
-- 🔄 **Multiple Providers** - Configure OpenAI Chat Completions or Anthropic Messages endpoints, authentication, and custom headers
+- 🔄 **Pi-powered Providers** - Supports OpenAI Chat Completions, OpenAI Responses, Anthropic Messages, Google Generative AI, and compatible custom endpoints
+- 🧭 **Model Catalogs** - The Chrome extension merges Pi built-ins, pi.dev updates, provider discovery, and user-defined models
 - 🔁 **Safer Config Sync** - Non-sensitive model and endpoint settings can sync; API keys and header values remain on-device
 - 📚 **Article Learning Actions** - Send a configurable study prompt in one click and export the full conversation as Markdown
 - 📝 **Comprehensive Q&A** - Support webpage content Q&A, PDF document Q&A, image Q&A and more
@@ -47,8 +48,8 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 
 1. 🔑 **Configure API**
    - Click the settings button
-   - Choose OpenAI or Anthropic format, then fill in API Key, Base URL and model name
-   - Support adding multiple API configurations
+   - Choose a Provider preset or create a custom Provider, then enter its API key and API root
+   - Refresh or add models manually and switch among models sharing one Provider
 
 2. 💬 **Start Chatting**
    - Use hotkey Windows: `Alt+Z` / Mac: `Ctrl+Z` to summon sidebar
@@ -122,6 +123,7 @@ The deployment will be automatically handled by GitHub Actions. You can access y
 ### Web Version Features
 - 🌐 Access Cerebr from any browser without installation
 - 💻 Keeps chat, configuration, themes, and Markdown export; webpage extraction remains extension-only
+- 🧩 Uses manual Providers/models only; the Web build does not contact pi.dev or provider model-list endpoints
 - ☁️ Deploy your own instance for better control
 - 🔒 Secure and private deployment
 
@@ -144,6 +146,15 @@ https://github.com/tw93/Pake
 
 ## 🚀 Latest Updates
 
+### v2.7.0
+
+- 🧠 Uses pinned `@earendil-works/pi-ai` adapters and normalized streaming events
+- 🔌 Adds OpenAI Responses and Google Generative AI while retaining OpenAI/Anthropic-compatible endpoints
+- 🗂️ Separates Providers from Models so credentials can be shared across multiple models
+- 🔄 Adds Pi catalog updates, provider discovery, ETag caching, and user model overrides to the Chrome extension
+- 🔐 Keeps API keys, custom headers, and dynamic model caches on-device
+- ♻️ Migrates 2.6.x API settings without deleting rollback data
+
 ### v2.6.1
 
 - 🐛 Fixed the extension action icon not opening Chrome's native Side Panel
@@ -164,7 +175,18 @@ This project is developed using Chrome Extension Manifest V3, with main tech sta
 
 - 🎨 Native JavaScript + CSS
 - 📦 Chrome Extension API
+- 🧠 `@earendil-works/pi-ai` with an esbuild browser bundle
 - 🔧 PDF.js + MathJax + Marked.js + Mermaid
+
+First-time development build:
+
+```bash
+npm ci
+npm run build:pi-ai
+npm test
+```
+
+See [PRIVACY.md](./PRIVACY.md) and [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for privacy and third-party component details.
 
 ## 🤝 Contribution Guide
 

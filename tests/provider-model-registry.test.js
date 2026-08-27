@@ -119,7 +119,8 @@ test('catalog refresh restores stale data, uses ETag and keeps failures non-dest
     const service = new ModelCatalogService({
         store,
         now: () => 20_000_000,
-        fetchImpl: async (url, init) => {
+        fetchImpl: async function (url, init) {
+            assert.equal(this, undefined);
             calls.push({ url: String(url), headers: init.headers });
             if (String(url).includes('pi.dev')) {
                 assert.equal(init.headers['If-None-Match'], 'old-tag');
@@ -203,4 +204,22 @@ test('Pi runtime registers all four APIs and selects models from provider catalo
     assert.equal(runtime.getSelectedModel().id, 'model-a');
     assert.equal(runtime.getSelectedModel().baseUrl, 'https://example.test/v2');
     assert.equal((await runtime.checkAuth('custom')).source, 'stored credential');
+});
+
+test('Pi runtime passes real keys to Anthropic and Google x-api-key SDK adapters', async () => {
+    const credentials = {
+        async read(id) { return { type: 'api_key', key: `${id}-secret`, headers: [] }; },
+        async list() { return []; },
+        async modify() {},
+        async delete() {},
+    };
+    const runtime = new PiModelRuntimeService({ credentials });
+    await runtime.configure({
+        providerConfigs: [
+            { id: 'anthropic-test', api: 'anthropic-messages', baseUrl: 'https://api.anthropic.com', authMode: 'x-api-key', modelSource: 'manual', userModels: [{ id: 'claude-test' }] },
+            { id: 'google-test', api: 'google-generative-ai', baseUrl: 'https://generativelanguage.googleapis.com', authMode: 'x-api-key', modelSource: 'manual', userModels: [{ id: 'gemini-test' }] },
+        ],
+    });
+    assert.equal((await runtime.models.getAuth('anthropic-test')).auth.apiKey, 'anthropic-test-secret');
+    assert.equal((await runtime.models.getAuth('google-test')).auth.apiKey, 'google-test-secret');
 });

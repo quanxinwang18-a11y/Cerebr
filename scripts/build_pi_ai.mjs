@@ -1,4 +1,4 @@
-import { rm } from 'node:fs/promises';
+import { readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -32,6 +32,12 @@ const result = await build({
 });
 
 const outputs = Object.keys(result.metafile.outputs);
+for (const output of outputs) {
+    if (!output.endsWith('.js')) continue;
+    const absolutePath = path.resolve(repoRoot, output);
+    const source = await readFile(absolutePath, 'utf8');
+    await writeFile(absolutePath, source.replace(/[ \t]+$/gmu, ''), 'utf8');
+}
 const forbiddenImports = [];
 for (const [output, metadata] of Object.entries(result.metafile.outputs)) {
     for (const imported of metadata.imports || []) {

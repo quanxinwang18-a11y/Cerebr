@@ -90,6 +90,8 @@ Each host now:
 
 The Chrome extension shell is hosted in the native Chrome Side Panel. Page plugins reach it through the background bridge; public shell service names, permissions, hook signatures, and manifest schemas are unchanged. Because this is a host implementation migration rather than a plugin contract change, no marketplace or template schema sync is required for version 2.6.0.
 
+Version 2.7.0 replaces the host's internal LLM transport with Pi AI adapters. The existing request hooks still receive and may return `url`, `requestBody`, and `requestInit`; response/error hook signatures, manifest schemas, permissions, slots, and shell/page/background APIs remain unchanged. This was evaluated as an internal host implementation change, so the plugin template and marketplace packages do not require a schema or example update for 2.7.0.
+
 ## Unified setup context
 
 Script plugin `setup(...)` now receives a single runtime context object instead of an implicit host API blob.

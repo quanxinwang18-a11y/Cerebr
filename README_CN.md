@@ -24,7 +24,8 @@ Cerebr 是一款面向 Chrome 141+ 的浏览器 AI 助手扩展，专注于提�
 ## ✨ 核心特性
 
 - 🎯 **Chrome 原生侧边栏** - 通过快捷键(Windows: `Alt+Z` / Mac: `Ctrl+Z`)打开浏览器原生 Side Panel
-- 🔄 **多 Provider 支持** - 支持 OpenAI Chat Completions 与 Anthropic Messages 格式、自定义端点和 Header
+- 🔄 **Pi 多 Provider 内核** - 支持 OpenAI Chat Completions、OpenAI Responses、Anthropic Messages、Google Generative AI 与自定义兼容端点
+- 🧭 **模型目录** - Chrome 扩展可合并 Pi 内置目录、pi.dev 更新、服务商发现与用户自定义模型
 - 🔁 **安全配置同步** - 模型与端点等非敏感配置可同步，API Key 与 Header 值仅保存在本机
 - 📚 **文章学习操作** - 一键发送自定义学习提示词，并可将完整会话导出为 Markdown
 - 📝 **全能问答** - 支持网页内容问答、PDF 文档问答、图片问答等多种场景
@@ -47,8 +48,8 @@ Cerebr 是一款面向 Chrome 141+ 的浏览器 AI 助手扩展，专注于提�
 
 1. 🔑 **配置 API**
    - 点击设置按钮
-   - 选择 OpenAI 或 Anthropic 格式，填写 API Key、Base URL 和模型名称
-   - 支持添加多个 API 配置
+   - 选择 Provider 预设或创建自定义 Provider，填写 API Key 与 API 根地址
+   - 刷新或手动添加模型，在同一个 Provider 下快速切换
 
 2. 💬 **开始对话**
    - 使用快捷键 Windows: `Alt+Z` / Mac: `Ctrl+Z` 唤出侧边栏
@@ -122,6 +123,7 @@ Cerebr 是一款面向 Chrome 141+ 的浏览器 AI 助手扩展，专注于提�
 ### Web 版本特点
 - 🌐 无需安装，通过任何浏览器访问
 - 💻 保留聊天、配置、主题和 Markdown 导出；网页内容提取仅在 Chrome 扩展中可用
+- 🧩 Web 版仅使用手动 Provider/模型，不访问 pi.dev，也不自动调用服务商模型列表接口
 - ☁️ 部署自己的实例以获得更好的控制
 - 🔒 安全私密的部署方案
 
@@ -144,6 +146,15 @@ https://github.com/tw93/Pake
 
 ## 🚀 最新更新
 
+### v2.7.0
+
+- 🧠 使用固定版本 `@earendil-works/pi-ai` 作为模型与流式协议内核
+- 🔌 新增 OpenAI Responses 与 Google Generative AI，并保留 OpenAI/Anthropic 兼容端点
+- 🗂️ Provider 与 Model 分离，同一 Provider 可共享凭据并管理多个模型
+- 🔄 Chrome 扩展支持 Pi 目录、服务商发现、ETag 缓存和手动模型覆盖
+- 🔐 API Key、自定义 Header 和动态目录缓存继续仅保存在本机
+- ♻️ 自动迁移 2.6.x API 配置，同时保留旧数据用于回滚
+
 ### v2.6.1
 
 - 🐛 修复点击扩展图标后 Chrome 原生 Side Panel 没有打开的问题
@@ -164,7 +175,18 @@ https://github.com/tw93/Pake
 
 - 🎨 原生 JavaScript + CSS
 - 📦 Chrome Extension API
+- 🧠 `@earendil-works/pi-ai` + esbuild 浏览器 bundle
 - 🔧 PDF.js + MathJax + Marked.js + Mermaid
+
+首次开发构建：
+
+```bash
+npm ci
+npm run build:pi-ai
+npm test
+```
+
+隐私与第三方组件说明见 [PRIVACY_CN.md](./PRIVACY_CN.md) 和 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。
 
 ## 🤝 贡献指南
 

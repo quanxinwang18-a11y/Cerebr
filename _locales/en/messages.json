@@ -330,6 +330,8 @@
 
   "provider_custom_name": { "message": "Custom Provider" },
   "provider_add": { "message": "Add Provider" },
+  "provider_preset_select": { "message": "Choose a Provider preset" },
+  "provider_select_model": { "message": "Select model" },
   "provider_name": { "message": "Provider name" },
   "provider_model_source": { "message": "Model source" },
   "provider_model_list_path": { "message": "Model list path" },
@@ -340,6 +342,8 @@
   "provider_header_value": { "message": "Value" },
   "provider_models": { "message": "Models" },
   "provider_search_models": { "message": "Search models" },
+  "provider_showing_models": { "message": "Showing" },
+  "provider_models_count": { "message": "models" },
   "provider_model_id": { "message": "Model ID" },
   "provider_add_model": { "message": "Add model" },
   "provider_model_display_name": { "message": "Display name" },

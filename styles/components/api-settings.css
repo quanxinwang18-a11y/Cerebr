@@ -201,6 +201,12 @@
     margin-top: 8px;
 }
 
+.provider-model-count {
+    margin-top: 6px;
+    color: var(--secondary-text-color, #aeb6c2);
+    font-size: 11px;
+}
+
 .provider-model-row {
     border: 1px solid color-mix(in srgb, var(--border-color, #4b5563) 70%, transparent);
     border-radius: 10px;
@@ -249,6 +255,10 @@
 .provider-model-details {
     padding: 10px;
     border-top: 1px solid var(--border-color, #4b5563);
+}
+
+.provider-model-details[hidden] {
+    display: none !important;
 }
 
 .provider-add-model-row input {

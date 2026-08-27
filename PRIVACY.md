@@ -1,82 +1,28 @@
-# Cerebr 隐私权政策
+# Cerebr Privacy Notice
 
-*最后更新日期：2024年2月*
+Cerebr does not operate an LLM proxy. Chat requests go directly from the browser to the Provider configured by the user and may include conversation messages, webpage/PDF/YouTube content the user enabled, and attached images.
 
-## 1. 引言
+## On-device data
 
-欢迎使用 Cerebr（"我们"，"我们的"或"本扩展"）。本隐私权政策旨在说明我们如何收集、使用、存储和保护您的信息。使用我们的服务即表示您同意本隐私权政策中描述的数据处理程序。
+- API keys and custom header values are stored in `chrome.storage.local` and are not synced through Chrome Sync.
+- Provider-discovered model catalogs, ETags, and refresh timestamps are local caches.
+- Conversations, drafts, reading progress, and oversized system prompts follow Cerebr's existing local-storage policy.
+- A full-data export contains local credentials. Treat exported backup files as sensitive.
 
-## 2. 信息收集
+## Synced configuration
 
-### 2.1 主动提供的信息
-- API密钥和配置信息
-- 用户偏好设置（如界面主题、快捷键设置等）
-- 聊天记录和对话内容
+Provider names, protocols, base URLs, model IDs, model capability overrides, the selected model, and system prompts that fit the sync quota may use Chrome Sync. Credentials must be entered again on a new device.
 
-### 2.2 自动收集的信息
-- 基本的使用统计信息
-- 错误日志（用于改进服务质量）
-- 当前访问的网页URL（仅在您主动使用网页问答功能时）
+## External requests
 
-## 3. 信息使用
+- Chat and “Test connection” contact the selected Provider. A connection test sends a minimal prompt and may consume a small number of billable tokens.
+- The Chrome extension may request `https://pi.dev/api/models/providers/<providerId>` for model metadata. This request contains the Provider ID and catalog validators such as ETag, but not the user's Provider API key, custom headers, or conversation content.
+- The Chrome extension may use the user's Provider credentials to call that Provider's model-list endpoint. The Web build does not contact pi.dev and does not perform automatic model discovery.
 
-我们收集的信息将用于：
-- 提供和改进我们的AI助手服务
-- 保存您的个性化设置
-- 维护和优化扩展程序性能
-- 排查技术问题
-- 改进用户体验
+Cerebr never executes code from a remote model catalog; catalog responses are validated and treated only as JSON data.
 
-## 4. 数据存储
+## User controls and deletion
 
-### 4.1 本地存储
-- 所有用户数据主要存储在您的本地浏览器中
-- API Key 与自定义 Header 值只保存在当前设备的 Chrome 本地存储中，不参与跨设备同步
-- API 格式、模型名称、Base URL 等非敏感配置可以使用 Chrome 同步存储
-- 聊天历史记录保存在本地存储中
-- 用户主动执行“导出全部数据”时，备份文件会包含本地凭据，请自行妥善保管
+Users can edit or remove Providers, delete conversations, export their data, and remove locally stored Cerebr data through browser controls. Uninstalling the extension removes its extension-scoped storage according to Chrome's behavior.
 
-### 4.2 第三方服务
-- 当您使用AI功能时，您的查询将被发送到您配置的AI服务提供商（如OpenAI、Anthropic等）
-- 我们不会存储或转发您的API密钥到除您指定的服务提供商之外的任何第三方
-
-## 5. 数据安全
-
-我们采取以下措施保护您的数据：
-- API Key 和自定义 Header 不写入 Cerebr 的跨设备同步数据
-- Cerebr 不提供额外的应用层加密；本地数据安全依赖 Chrome 用户配置与操作系统安全
-- 仅在必要时访问网页内容
-- 不收集或存储任何个人身份信息
-- 不与第三方共享用户数据
-
-## 6. 用户权利
-
-您拥有以下权利：
-- 随时查看和删除您的聊天历史
-- 清除所有存储的数据
-- 修改或删除您的API配置
-- 选择是否启用特定功能
-
-## 7. 数据删除
-
-您可以通过以下方式删除您的数据：
-- 使用扩展程序内的"清除数据"功能
-- 在Chrome扩展管理页面中删除扩展程序
-- 使用快捷键（Windows: Alt+X / Mac: Ctrl+X）清空聊天记录
-
-## 8. 政策更新
-
-我们可能会不时更新本隐私权政策。当我们进行重大更改时，我们将通过扩展程序通知您。继续使用我们的服务即表示您接受更新后的政策。
-
-## 9. 联系我们
-
-如果您对本隐私权政策有任何问题或建议，请通过以下方式联系我们：
-- GitHub Issues: https://github.com/yym68686/Cerebr/issues
-- 电子邮件：yym68686@outlook.com
-
-## 10. 合规性声明
-
-本扩展程序遵守：
-- Chrome网上应用店开发者计划政策
-- 通用数据保护条例(GDPR)
-- 加州消费者隐私法案(CCPA)
+Questions and reports can be submitted through [GitHub Issues](https://github.com/yym68686/Cerebr/issues).
