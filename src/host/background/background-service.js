@@ -3,6 +3,7 @@ import { isPluginBridgeMessage } from '../../plugin/bridge/plugin-bridge.js';
 import { createPageUserScriptService } from '../../plugin/page/page-user-script-service.js';
 import {
   NATIVE_SIDE_PANEL_PORT_NAME,
+  configureNativeSidePanelAction,
   createNativeSidePanelService,
 } from './native-side-panel-service.js';
 
@@ -36,6 +37,7 @@ const pdfJsInjectedTabs = new Set();
 const backgroundPluginRuntime = createBackgroundPluginRuntime();
 const pageUserScriptService = createPageUserScriptService();
 const nativeSidePanelService = createNativeSidePanelService();
+void configureNativeSidePanelAction();
 const PAGE_USER_SCRIPT_PORT_PREFIX = 'cerebr.page.user-script:';
 const PAGE_USER_SCRIPT_MESSAGE_TYPES = new Set([
   'PAGE_USER_SCRIPT_PLUGIN_STATUS_QUERY',
@@ -343,15 +345,9 @@ async function getPluginRuntimeDiagnosticsSnapshot(tabId = null) {
   };
 }
 
-// 监听扩展图标点击
-chrome.action.onClicked.addListener(async (tab) => {
-  try {
-    await nativeSidePanelService.toggle({ windowId: tab?.windowId, tabId: tab?.id });
-  } catch (error) {
-    console.error('切换原生侧边栏失败:', error);
-  } finally {
-    void backgroundPluginRuntime.handleActionClicked(tab || null);
-  }
+// Chrome 原生处理工具栏图标开关；这里只保留插件生命周期通知。
+chrome.action.onClicked.addListener((tab) => {
+  void backgroundPluginRuntime.handleActionClicked(tab || null);
 });
 
 // 简化后的命令监听器

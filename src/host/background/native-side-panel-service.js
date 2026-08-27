@@ -1,5 +1,25 @@
 export const NATIVE_SIDE_PANEL_PORT_NAME = 'cerebr.native-side-panel';
 
+export async function configureNativeSidePanelAction({
+    chromeApi = globalThis.chrome,
+    logger = console,
+} = {}) {
+    if (typeof chromeApi?.sidePanel?.setPanelBehavior !== 'function') {
+        logger?.error?.('[Cerebr] Chrome Side Panel action behavior is unavailable');
+        return false;
+    }
+
+    try {
+        await chromeApi.sidePanel.setPanelBehavior({
+            openPanelOnActionClick: true,
+        });
+        return true;
+    } catch (error) {
+        logger?.error?.('[Cerebr] Failed to configure native Side Panel action behavior', error);
+        return false;
+    }
+}
+
 function normalizeWindowId(value) {
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric >= 0 ? Math.floor(numeric) : null;

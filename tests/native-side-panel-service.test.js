@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
     NATIVE_SIDE_PANEL_PORT_NAME,
+    configureNativeSidePanelAction,
     createNativeSidePanelService,
 } from '../src/host/background/native-side-panel-service.js';
 
@@ -38,6 +39,9 @@ function createMockChrome() {
             async sendMessage() {},
         },
         sidePanel: {
+            async setPanelBehavior(options) {
+                calls.push(['behavior', options]);
+            },
             async open(options) {
                 calls.push(['open', options]);
             },
@@ -47,6 +51,16 @@ function createMockChrome() {
         },
     };
 }
+
+test('delegates toolbar icon toggling to Chrome native Side Panel behavior', async () => {
+    const chromeApi = createMockChrome();
+    const configured = await configureNativeSidePanelAction({ chromeApi });
+    assert.equal(configured, true);
+    assert.deepEqual(chromeApi.calls, [[
+        'behavior',
+        { openPanelOnActionClick: true },
+    ]]);
+});
 
 function createPort() {
     const onMessage = createEvent();
