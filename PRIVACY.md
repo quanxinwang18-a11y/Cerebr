@@ -5,6 +5,7 @@ Cerebr does not operate an LLM proxy. Chat requests go directly from the browser
 ## On-device data
 
 - API keys and custom header values are stored in `chrome.storage.local` and are not synced through Chrome Sync.
+- When users import Pi configuration files, literal API keys and header values from those files are moved into the same local-only credential store. Environment-variable and command-based secrets are not imported.
 - Provider-discovered model catalogs, ETags, and refresh timestamps are local caches.
 - Conversations, drafts, reading progress, and oversized system prompts follow Cerebr's existing local-storage policy.
 - A full-data export contains local credentials. Treat exported backup files as sensitive.

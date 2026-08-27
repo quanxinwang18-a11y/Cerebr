@@ -63,11 +63,16 @@
     margin-bottom: 12px;
     border-radius: 12px;
     background: var(--bg-color, #262b33);
+    flex-wrap: wrap;
 }
 
 .provider-preset-select,
 .provider-add-row .provider-primary-button {
     flex: 1;
+}
+
+.provider-add-row .provider-secondary-button {
+    flex: 0 0 auto;
 }
 
 .provider-cards {

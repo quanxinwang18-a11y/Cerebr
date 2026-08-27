@@ -49,7 +49,9 @@ Cerebr 是一款面向 Chrome 141+ 的浏览器 AI 助手扩展，专注于提�
 1. 🔑 **配置 API**
    - 点击设置按钮
    - 选择 Provider 预设或创建自定义 Provider，填写 API Key 与 API 根地址
-   - 刷新或手动添加模型，在同一个 Provider 下快速切换
+   - Chrome 扩展会在凭据或地址变化后自动请求模型列表，并用 Pi 目录补齐可识别模型的参数
+   - 服务商不支持模型列表时，可点击“导入 Pi 配置”，同时选择 `~/.pi/agent/models.json` 与 `settings.json`
+   - 也可以手动添加/覆盖模型，在同一个 Provider 下快速切换
 
 2. 💬 **开始对话**
    - 使用快捷键 Windows: `Alt+Z` / Mac: `Ctrl+Z` 唤出侧边栏
@@ -148,10 +150,12 @@ https://github.com/tw93/Pake
 
 ### v2.7.0
 
+- ⭐ 使用新的蓝色四芒星扩展图标
 - 🧠 使用固定版本 `@earendil-works/pi-ai` 作为模型与流式协议内核
 - 🔌 新增 OpenAI Responses 与 Google Generative AI，并保留 OpenAI/Anthropic 兼容端点
 - 🗂️ Provider 与 Model 分离，同一 Provider 可共享凭据并管理多个模型
 - 🔄 Chrome 扩展支持 Pi 目录、服务商发现、ETag 缓存和手动模型覆盖
+- 📥 支持导入 Pi 的 Provider/模型配置；API Key 和 Header 自动抽取到本机凭据区
 - 🔐 API Key、自定义 Header 和动态目录缓存继续仅保存在本机
 - ♻️ 自动迁移 2.6.x API 配置，同时保留旧数据用于回滚
 

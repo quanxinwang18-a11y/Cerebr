@@ -49,7 +49,9 @@ Born from a need for a clean, efficient browser AI assistant, Cerebr stands out 
 1. 🔑 **Configure API**
    - Click the settings button
    - Choose a Provider preset or create a custom Provider, then enter its API key and API root
-   - Refresh or add models manually and switch among models sharing one Provider
+   - The Chrome extension automatically requests the model list after credentials or endpoints change and uses Pi metadata for recognized models
+   - If a Provider does not expose a usable model list, choose “Import Pi config” and select `~/.pi/agent/models.json` plus `settings.json`
+   - Models can also be added or overridden manually and switched within one Provider
 
 2. 💬 **Start Chatting**
    - Use hotkey Windows: `Alt+Z` / Mac: `Ctrl+Z` to summon sidebar
@@ -148,10 +150,12 @@ https://github.com/tw93/Pake
 
 ### v2.7.0
 
+- ⭐ Replaces the extension artwork with a blue four-point guiding star
 - 🧠 Uses pinned `@earendil-works/pi-ai` adapters and normalized streaming events
 - 🔌 Adds OpenAI Responses and Google Generative AI while retaining OpenAI/Anthropic-compatible endpoints
 - 🗂️ Separates Providers from Models so credentials can be shared across multiple models
 - 🔄 Adds Pi catalog updates, provider discovery, ETag caching, and user model overrides to the Chrome extension
+- 📥 Imports Pi Provider/model configuration while moving API keys and headers into on-device credentials
 - 🔐 Keeps API keys, custom headers, and dynamic model caches on-device
 - ♻️ Migrates 2.6.x API settings without deleting rollback data
 

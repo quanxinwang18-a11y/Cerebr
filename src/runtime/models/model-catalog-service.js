@@ -77,20 +77,34 @@ function assertResponse(response, label) {
 
 function parseOpenAIModels(payload, defaults) {
     const entries = Array.isArray(payload?.data) ? payload.data : [];
-    return entries.map((model) => normalizeModelDefinition({
+    return entries.map((model) => {
+        const contextWindow = model?.context_length || model?.contextWindow || model?.top_provider?.context_length;
+        const maxTokens = model?.max_tokens || model?.maxTokens || model?.top_provider?.max_completion_tokens;
+        const inputModalities = model?.input_modalities || model?.architecture?.input_modalities;
+        const supportedParameters = model?.supported_parameters;
+        const inferredFields = [];
+        if (!contextWindow) inferredFields.push('contextWindow');
+        if (!maxTokens) inferredFields.push('maxTokens');
+        if (!Array.isArray(inputModalities)) inferredFields.push('input');
+        if (!Array.isArray(supportedParameters)) inferredFields.push('reasoning');
+        return normalizeModelDefinition({
         id: model?.id,
-        name: model?.name || model?.id,
-        contextWindow: model?.context_length || model?.top_provider?.context_length,
-        maxTokens: model?.top_provider?.max_completion_tokens,
-        input: model?.architecture?.input_modalities?.includes('image') ? ['text', 'image'] : ['text'],
-        reasoning: Array.isArray(model?.supported_parameters) && model.supported_parameters.includes('reasoning'),
+        name: model?.name || model?.display_name || model?.id,
+        contextWindow,
+        maxTokens,
+        input: Array.isArray(inputModalities)
+            ? (inputModalities.includes('image') ? ['text', 'image'] : ['text'])
+            : undefined,
+        reasoning: Array.isArray(supportedParameters) ? supportedParameters.includes('reasoning') : undefined,
+        inferredFields,
         cost: model?.pricing ? {
             input: Number(model.pricing.prompt) * 1_000_000 || 0,
             output: Number(model.pricing.completion) * 1_000_000 || 0,
             cacheRead: 0,
             cacheWrite: 0,
         } : undefined,
-    }, { ...defaults, source: 'provider', inferred: !model?.context_length })).filter(Boolean);
+    }, { ...defaults, source: 'provider', inferred: inferredFields.length > 0 });
+    }).filter(Boolean);
 }
 
 async function fetchAnthropicModels(url, headers, fetchImpl, signal, defaults) {
